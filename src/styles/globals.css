@@ -1,0 +1,10 @@
+/* Override Radix UI hover behavior for dropdown submenus */
+[data-radix-dropdown-menu-content] [data-hover="disabled"] {
+  pointer-events: auto !important;
+}
+
+/* Disable automatic hover opening for submenus */
+[data-radix-dropdown-sub][data-state="open"] [data-radix-dropdown-sub-trigger][data-state="closed"]:hover + [data-radix-dropdown-sub-content] {
+  display: none !important;
+} 
+
