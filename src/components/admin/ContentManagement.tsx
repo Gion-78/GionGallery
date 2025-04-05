@@ -76,15 +76,19 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
   const [selectedZipFile, setSelectedZipFile] = useState<File | null>(null);
   const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [selectedItems, setSelectedItems] = useState<string[]>([]);
+  const [isDeleteSelectedInProgress, setIsDeleteSelectedInProgress] = useState(false);
   
   const imageInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   // Load content from localStorage
   useEffect(() => {
     if (isOpen) {
       loadContent();
+      setSelectedItems([]);
     }
   }, [isOpen]);
 
@@ -122,6 +126,11 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
     
     return true;
   });
+
+  // Clear selections when filters change
+  useEffect(() => {
+    setSelectedItems([]);
+  }, [filter, categoryFilter, subcategoryFilter]);
 
   // Get unique categories and subcategories for the filtered section
   const availableCategories = Array.from(
@@ -475,13 +484,103 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
     }
   };
 
+  // Handle selection of item
+  const toggleItemSelection = (itemId: string) => {
+    setSelectedItems(prev => {
+      if (prev.includes(itemId)) {
+        return prev.filter(id => id !== itemId);
+      } else {
+        return [...prev, itemId];
+      }
+    });
+  };
+
+  // Select or deselect all visible items
+  const toggleSelectAll = () => {
+    if (selectedItems.length === filteredContent.length) {
+      // If all are selected, deselect all
+      setSelectedItems([]);
+    } else {
+      // Otherwise, select all visible items
+      setSelectedItems(filteredContent.map(item => item.id));
+    }
+  };
+
+  // Delete multiple selected items
+  const handleDeleteSelected = async () => {
+    if (selectedItems.length === 0) return;
+    
+    setIsDeleteSelectedInProgress(true);
+    
+    // Store original deletion state to restore later
+    const originalDeletingState = { ...isDeleting };
+    
+    // Set all selected items as being deleted
+    const newDeletingState = { ...originalDeletingState };
+    selectedItems.forEach(itemId => {
+      newDeletingState[itemId] = true;
+    });
+    setIsDeleting(newDeletingState);
+    
+    try {
+      // Process each item one by one
+      for (const itemId of selectedItems) {
+        const item = contentItems.find(content => content.id === itemId);
+        if (!item) continue;
+        
+        // Delete from ImageKit if files exist
+        if (item.imageUrl && item.fileId) {
+          await deleteFile(item.fileId);
+        }
+        
+        if (item.zipUrl && item.zipFileId) {
+          await deleteFile(item.zipFileId);
+        }
+        
+        if (item.videoUrl && item.videoFileId) {
+          await deleteFile(item.videoFileId);
+        }
+        
+        // Delete from localStorage
+        deleteContent(item.id);
+        
+        // Update deletion state for this item
+        setDeletionResults(prev => ({ ...prev, [item.id]: 'success' }));
+      }
+      
+      // Reload content after all deletions
+      loadContent();
+      
+      // Clear selected items
+      setSelectedItems([]);
+      
+      // Clear the deletion results after a delay
+      setTimeout(() => {
+        setDeletionResults({});
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error deleting selected content:', error);
+      // Mark all as error if something fails
+      const errorResults = { ...deletionResults };
+      selectedItems.forEach(itemId => {
+        errorResults[itemId] = 'error';
+      });
+      setDeletionResults(errorResults);
+    } finally {
+      setIsDeleteSelectedInProgress(false);
+      setIsDeleting(originalDeletingState);
+    }
+  };
+
   // Only show if modal is open
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-auto py-10">
-      <div className="bg-card rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <div className="p-6 flex flex-col">
+      <div ref={modalRef} className="bg-card rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+        {/* Fixed header area */}
+        <div className="p-6 border-b border-border sticky top-0 bg-card z-10">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold">Manage Content</h2>
             <button 
@@ -494,28 +593,54 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
           </div>
 
           {/* Filter tabs */}
-          <div className="mb-4 border-b border-border">
-            <div className="flex space-x-2">
-              {['all', 'Artwork', 'Leaks', 'Banner Slider'].map((section) => (
+          <div className="border-b border-border">
+            <div className="flex space-x-2 items-center justify-between">
+              <div className="flex space-x-2">
+                {['all', 'Artwork', 'Leaks', 'Banner Slider'].map((section) => (
+                  <button
+                    key={section}
+                    onClick={() => {
+                      setFilter(section);
+                      setCategoryFilter('');
+                      setSubcategoryFilter('');
+                    }}
+                    className={`px-4 py-2 ${
+                      filter === section 
+                        ? 'border-b-2 border-primary text-primary' 
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {section === 'all' ? 'All Content' : section}
+                  </button>
+                ))}
+              </div>
+              
+              {/* Delete Selected button in header */}
+              {selectedItems.length > 0 && (
                 <button
-                  key={section}
-                  onClick={() => {
-                    setFilter(section);
-                    setCategoryFilter('');
-                    setSubcategoryFilter('');
-                  }}
-                  className={`px-4 py-2 ${
-                    filter === section 
-                      ? 'border-b-2 border-primary text-primary' 
-                      : 'text-muted-foreground hover:text-foreground'
+                  onClick={handleDeleteSelected}
+                  disabled={isDeleteSelectedInProgress}
+                  className={`px-4 py-1.5 mr-2 text-sm bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors flex items-center gap-1.5 ${
+                    isDeleteSelectedInProgress ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
+                  title="Delete Selected Items"
                 >
-                  {section === 'all' ? 'All Content' : section}
+                  {isDeleteSelectedInProgress ? (
+                    <span className="inline-block w-4 h-4 border-2 border-t-transparent border-current rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span className="font-medium">Delete {selectedItems.length}</span>
+                    </>
+                  )}
                 </button>
-              ))}
+              )}
             </div>
           </div>
-
+        </div>
+        
+        {/* Scrollable content area */}
+        <div className="p-6 pb-24 flex-1 overflow-y-auto">
           {/* Category and Subcategory filters - only show for Artwork and Leaks */}
           {(filter === 'Artwork' || filter === 'Leaks') && (
             <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -556,6 +681,26 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
             </div>
           )}
 
+          {/* Mass delete control */}
+          {filteredContent.length > 0 && (
+            <div className="mb-4 flex items-center">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="select-all"
+                  checked={selectedItems.length === filteredContent.length && filteredContent.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 accent-primary"
+                />
+                <label htmlFor="select-all" className="text-sm font-medium">
+                  {selectedItems.length === 0 
+                    ? 'Select All' 
+                    : `Selected ${selectedItems.length} of ${filteredContent.length}`}
+                </label>
+              </div>
+            </div>
+          )}
+
           {/* Content list */}
           {filteredContent.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
@@ -566,9 +711,22 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
               {filteredContent.map(item => (
                 <div 
                   key={item.id} 
-                  className="border border-border rounded-lg overflow-hidden shadow-sm"
+                  className={`border border-border rounded-lg overflow-hidden shadow-sm ${
+                    selectedItems.includes(item.id) ? 'ring-2 ring-primary' : ''
+                  }`}
                 >
                   <div className="relative aspect-video bg-muted">
+                    {/* Checkbox for selecting item */}
+                    <div className="absolute top-2 left-2 z-10">
+                      <input
+                        type="checkbox"
+                        id={`select-${item.id}`}
+                        checked={selectedItems.includes(item.id)}
+                        onChange={() => toggleItemSelection(item.id)}
+                        className="w-4 h-4 accent-primary"
+                      />
+                    </div>
+                    
                     {item.imageUrl ? (
                       <img 
                         src={item.imageUrl} 

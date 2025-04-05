@@ -44,7 +44,7 @@ const Footer = () => {
                 </svg>
               </a>
               <a 
-                href="https://t.me" 
+                href="https://t.me/abw_myslem24" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="bg-secondary rounded-full p-2 text-muted-foreground hover:text-primary hover:bg-secondary/80 transition-all duration-300"
@@ -64,15 +64,6 @@ const Footer = () => {
               Subscribe to our newsletter for the latest updates and exclusive content.
             </p>
           </div>
-        </div>
-        
-        <div className="border-t border-border/20 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
-          <p className="text-muted-foreground text-sm text-center md:text-left">
-            © {currentYear} Gion Gallery. All rights reserved.
-          </p>
-          <p className="text-muted-foreground text-sm mt-4 md:mt-0">
-            An artistic showcase of creative works.
-          </p>
         </div>
       </div>
     </footer>

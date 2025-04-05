@@ -434,9 +434,10 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-auto py-10">
           <div 
             ref={modalRef}
-            className="bg-card rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            className="bg-card rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col"
           >
-            <div className="p-6 flex flex-col">
+            {/* Fixed header area */}
+            <div className="p-6 border-b border-border sticky top-0 bg-card z-10">
               <div className="flex justify-between items-center mb-4">
                 <h2 className="text-xl font-bold">Upload Content</h2>
                 <button 
@@ -449,7 +450,7 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
               </div>
               
               {/* Section Tabs */}
-              <div className="mb-6 border-b border-border">
+              <div className="border-b border-border">
                 <div className="flex space-x-2">
                   {(['Artwork', 'Leaks', 'Banner Slider'] as const).map((section) => (
                     <button
@@ -466,7 +467,10 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
                   ))}
                 </div>
               </div>
-              
+            </div>
+            
+            {/* Scrollable content area */}
+            <div className="p-6 flex-1 overflow-y-auto">
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Category Selection */}
                 {activeSection !== 'Banner Slider' && (
