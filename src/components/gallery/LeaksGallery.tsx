@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Download } from 'lucide-react';
 
 // Define types for sort options
@@ -23,6 +23,8 @@ interface LeaksGalleryProps {
   category: 'Main Leaks' | 'Beta Leaks';
   searchQuery?: string;
   sortOption?: SortOption;
+  currentPage?: number;
+  itemsPerPage?: number;
   onTotalItemsChange?: (total: number) => void;
 }
 
@@ -30,9 +32,12 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
   category,
   searchQuery = '',
   sortOption = { field: 'date', direction: 'desc' },
+  currentPage = 1,
+  itemsPerPage = 8,
   onTotalItemsChange
 }) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
+  const [allItems, setAllItems] = useState<GalleryItem[]>([]);
 
   useEffect(() => {
     // Function to load and filter leak items
@@ -40,6 +45,7 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
       try {
         const storedContent = localStorage.getItem('siteContent');
         if (!storedContent) {
+          setAllItems([]);
           setItems([]);
           onTotalItemsChange?.(0);
           return;
@@ -111,17 +117,29 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
 
         console.log(`LeaksGallery found ${sortedItems.length} items for ${category}`);
 
-        setItems(sortedItems);
+        // Store all sorted items
+        setAllItems(sortedItems);
+        
+        // Calculate pagination
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedItems = sortedItems.slice(startIndex, endIndex);
+        
+        // Set the paginated items to display
+        setItems(paginatedItems);
+        
+        // Report total items for pagination
         onTotalItemsChange?.(sortedItems.length);
       } catch (error) {
         console.error('Error loading leak content:', error);
+        setAllItems([]);
         setItems([]);
         onTotalItemsChange?.(0);
       }
     };
 
     loadLeakItems();
-  }, [category, searchQuery, sortOption, onTotalItemsChange]);
+  }, [category, searchQuery, sortOption, currentPage, itemsPerPage, onTotalItemsChange]);
 
   // Handle storage events
   useEffect(() => {
@@ -130,6 +148,7 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
       try {
         const storedContent = localStorage.getItem('siteContent');
         if (!storedContent) {
+          setAllItems([]);
           setItems([]);
           onTotalItemsChange?.(0);
           return;
@@ -199,21 +218,32 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
           }
         });
 
-        setItems(sortedItems);
+        // Store all sorted items
+        setAllItems(sortedItems);
+        
+        // Calculate pagination
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedItems = sortedItems.slice(startIndex, endIndex);
+        
+        // Set the paginated items to display
+        setItems(paginatedItems);
+        
+        // Report total items for pagination
         onTotalItemsChange?.(sortedItems.length);
       } catch (error) {
-        console.error('Error updating leak content:', error);
+        console.error('Error handling storage event:', error);
+        setAllItems([]);
+        setItems([]);
+        onTotalItemsChange?.(0);
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('storageUpdate', handleStorageChange);
-
     return () => {
       window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('storageUpdate', handleStorageChange);
     };
-  }, [category, searchQuery, sortOption, onTotalItemsChange]);
+  }, [category, searchQuery, sortOption, currentPage, itemsPerPage, onTotalItemsChange]);
 
   const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement>, item: GalleryItem) => {
     e.preventDefault();
@@ -268,6 +298,18 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
                 alignItems: 'center'
               }}
             >
+              {/* Permanent download button */}
+              <div className="absolute top-2 left-2 z-30">
+                <a
+                  href={item.downloadUrl || item.imageUrl}
+                  onClick={(e) => handleDownload(e, item)}
+                  download={item.title}
+                  className="p-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground hover:text-primary rounded-full flex items-center justify-center transition-all duration-300"
+                  aria-label="Download image"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+              </div>
               <img
                 src={item.imageUrl}
                 alt={item.title}
@@ -277,18 +319,7 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
                 <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
-                <p className="text-sm text-muted-foreground mb-4">{item.description}</p>
-                <div className="flex gap-2">
-                  <a
-                    href={item.downloadUrl || item.imageUrl}
-                    onClick={(e) => handleDownload(e, item)}
-                    download={item.title}
-                    className="p-2 bg-secondary text-secondary-foreground rounded-full"
-                    aria-label="Download image"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
-                </div>
+                <p className="text-sm text-muted-foreground">{item.description}</p>
               </div>
             </div>
           ))

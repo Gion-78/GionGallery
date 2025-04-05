@@ -247,6 +247,18 @@ const CharacterSkillsPanel = ({
               style={{ maxWidth: '480px', maxHeight: '400px' }}
             >
               <div className="relative">
+                {/* Permanent download button */}
+                <div className="absolute top-2 left-2 z-30">
+                  <a 
+                    href={item.downloadUrl || item.imageUrl} 
+                    onClick={(e) => handleDownload(e, item)}
+                    download={item.title}
+                    className="p-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground hover:text-primary rounded-full flex items-center justify-center transition-all duration-300"
+                    aria-label="Download skill image"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                </div>
                 <img 
                   src={item.imageUrl} 
                   alt={item.title}
@@ -255,18 +267,7 @@ const CharacterSkillsPanel = ({
                 />
                 <div className="absolute inset-0 flex flex-col justify-end p-4">
                   <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
-                  <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
-                  <div className="flex">
-                    <a 
-                      href={item.downloadUrl || item.imageUrl} 
-                      onClick={(e) => handleDownload(e, item)}
-                      download={item.title}
-                      className="p-2 bg-secondary text-secondary-foreground rounded-full"
-                      aria-label="Download skill image"
-                    >
-                      <Download className="w-4 h-4" />
-                    </a>
-                  </div>
+                  <p className="text-sm text-muted-foreground">{item.description}</p>
                 </div>
               </div>
             </div>

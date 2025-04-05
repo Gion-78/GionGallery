@@ -530,6 +530,19 @@ const GalleryGrid = ({
                         : { aspectRatio: '3/4' })
                 : {}}
             >
+              {/* Permanent download button at top-left */}
+              <div className="absolute top-2 left-2 z-30">
+                <a
+                  href={item.downloadUrl || item.imageUrl}
+                  onClick={(e) => handleDownload(e, item)}
+                  download={item.title}
+                  className="p-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground hover:text-primary rounded-full flex items-center justify-center transition-all duration-300"
+                  aria-label="Download image"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+              </div>
+              
               {item.videoUrl ? (
                 <div className="relative w-full h-full">
                   {/* تعطيل عناصر التحكم الأصلية لإخفاء كل شيء */}
@@ -562,17 +575,6 @@ const GalleryGrid = ({
                   <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-20 pointer-events-auto">
                     <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
                     <p className="text-sm text-muted-foreground mb-4">{item.description}</p>
-                    <div className="flex gap-2">
-                      <a
-                        href={item.videoUrl}
-                        onClick={(e) => handleDownload(e, item)}
-                        download={item.title}
-                        className="p-2 bg-secondary text-secondary-foreground rounded-full"
-                        aria-label="Download video"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
-                    </div>
                   </div>
                 </div>
               ) : (
@@ -597,69 +599,60 @@ const GalleryGrid = ({
                                : category === 'Resources'
                                ? 'h-[160px] flex items-center justify-center bg-background/20 rounded-md'
                                : 'h-full'}>
-                    <img
-                      src={item.imageUrl}
-                      alt={item.title}
-                      className={`transition-transform duration-500 ${
-                        category === 'Characters' 
-                          ? 'max-h-full max-w-full object-contain' 
-                          : category === 'Character Banners' || category === 'Event Banners'
-                            ? 'w-full h-auto object-contain' 
-                            : category === 'Cutscenes'
-                              ? 'w-full h-auto object-contain'
-                            : category === 'Portraits'
-                              ? 'max-h-full max-w-full object-contain' 
-                            : category === 'Character Titles'
-                              ? 'max-h-full max-w-full object-contain' 
-                            : category === 'Event Titles'
-                              ? 'max-h-[160px] max-w-[330px] w-auto h-auto object-contain'
-                            : category === 'Character Frames'
-                              ? 'max-h-[128px] max-w-[128px] w-auto h-auto object-contain'
-                            : category === 'Event Frames'
-                              ? 'max-h-[128px] max-w-[128px] w-auto h-auto object-contain'
-                            : category === 'Emblems'
-                              ? 'max-h-[120px] max-w-[120px] w-auto h-auto object-contain scale-150 hover:scale-[1.8] transition-transform'
-                            : category === 'Resources'
-                              ? 'max-h-[160px] max-w-[300px] w-auto h-auto object-contain'
-                            : 'w-full h-full object-cover'
-                      }`}
-                      onLoad={(e) => {
-                        // Apply automatic scaling for Resources category only
-                        if (category === 'Resources') {
-                          const img = e.target as HTMLImageElement;
-                          // Remove transition to eliminate any zooming effect
-                          img.style.transition = 'none';
-                          
-                          // Scale for very small images (less than 50x50)
-                          if (img.naturalWidth < 50 || img.naturalHeight < 50) {
-                            img.style.transform = 'scale(3)';
+                    <div>
+                      <img
+                        src={item.imageUrl}
+                        alt={item.title}
+                        className={`transition-transform duration-500 ${
+                          category === 'Characters' 
+                            ? 'max-h-full max-w-full object-contain' 
+                            : category === 'Character Banners' || category === 'Event Banners'
+                              ? 'w-full h-auto object-contain' 
+                              : category === 'Cutscenes'
+                                ? 'w-full h-auto object-contain'
+                              : category === 'Portraits'
+                                ? 'max-h-full max-w-full object-contain' 
+                              : category === 'Character Titles'
+                                ? 'max-h-full max-w-full object-contain' 
+                              : category === 'Event Titles'
+                                ? 'max-h-[160px] max-w-[330px] w-auto h-auto object-contain'
+                              : category === 'Character Frames'
+                                ? 'max-h-[128px] max-w-[128px] w-auto h-auto object-contain'
+                              : category === 'Event Frames'
+                                ? 'max-h-[128px] max-w-[128px] w-auto h-auto object-contain'
+                              : category === 'Emblems'
+                                ? 'max-h-[120px] max-w-[120px] w-auto h-auto object-contain scale-150 hover:scale-[1.8] transition-transform'
+                              : category === 'Resources'
+                                ? 'max-h-[160px] max-w-[300px] w-auto h-auto object-contain'
+                              : 'w-full h-full object-cover'
+                        }`}
+                        onLoad={(e) => {
+                          // Apply automatic scaling for Resources category only
+                          if (category === 'Resources') {
+                            const img = e.target as HTMLImageElement;
+                            // Remove transition to eliminate any zooming effect
+                            img.style.transition = 'none';
+                            
+                            // Scale for very small images (less than 50x50)
+                            if (img.naturalWidth < 50 || img.naturalHeight < 50) {
+                              img.style.transform = 'scale(3)';
+                            }
+                            // Scale for small images
+                            else if (img.naturalWidth < 100 || img.naturalHeight < 85) {
+                              img.style.transform = 'scale(2.5)';
+                            } 
+                            // Scale for medium-sized images
+                            else if (img.naturalWidth < 200 || img.naturalHeight < 120) {
+                              img.style.transform = 'scale(1.2)';
+                            }
                           }
-                          // Scale for small images
-                          else if (img.naturalWidth < 100 || img.naturalHeight < 85) {
-                            img.style.transform = 'scale(2.5)';
-                          } 
-                          // Scale for medium-sized images
-                          else if (img.naturalWidth < 200 || img.naturalHeight < 120) {
-                            img.style.transform = 'scale(1.2)';
-                          }
-                        }
-                      }}
-                      loading="lazy"
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                    <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
-                    <p className="text-sm text-muted-foreground mb-4">{item.description}</p>
-                    <div className="flex gap-2">
-                      <a
-                        href={item.downloadUrl || item.imageUrl}
-                        onClick={(e) => handleDownload(e, item)}
-                        download={item.title}
-                        className="p-2 bg-secondary text-secondary-foreground rounded-full"
-                        aria-label="Download image"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
+                        }}
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                      <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                      <p className="text-sm text-muted-foreground">{item.description}</p>
                     </div>
                   </div>
                 </>

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Trash2, X, Image, FileArchive, Video, ExternalLink } from 'lucide-react';
-import { deleteFile } from '../../lib/imagekit';
+import { useState, useEffect, useRef } from 'react';
+import { Trash2, X, Image, FileArchive, Video, ExternalLink, Edit, Check, Upload, FileUp } from 'lucide-react';
+import { deleteFile, uploadImage, uploadZip, uploadVideo } from '../../lib/imagekit';
 import { deleteContent, triggerStorageUpdate } from '../../lib/utils';
 
 interface ContentItem {
@@ -21,6 +21,38 @@ interface ContentItem {
   folder: string;
 }
 
+// Categories and subcategories structure (import structure from UploadContent)
+const categoryStructure = {
+  'Artwork': {
+    'Characters': { type: 'single-image' },
+    'Banners': {
+      'Character Banners': { type: 'image-zip' },
+      'Event Banners': { type: 'single-image' }
+    },
+    'Skills': { type: 'image-zip' },
+    'Portraits': { type: 'single-image' },
+    'Titles': {
+      'Character Titles': { type: 'single-image' },
+      'Event Titles': { type: 'single-image' }
+    },
+    'Frames': {
+      'Character Frames': { type: 'single-image' },
+      'Event Frames': { type: 'single-image' }
+    },
+    'Miscellaneous': {
+      'Emblems': { type: 'single-image' },
+      'Resources': { type: 'single-image' },
+      'Login Screens': { type: 'video' },
+      'Cutscenes': { type: 'single-image' }
+    }
+  },
+  'Leaks': {
+    'Main Leaks': { type: 'single-image' },
+    'Beta Leaks': { type: 'single-image' }
+  },
+  'Banner Slider': { type: 'single-image' }
+};
+
 interface ContentManagementProps {
   isOpen: boolean;
   onClose: () => void;
@@ -29,8 +61,25 @@ interface ContentManagementProps {
 const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }) => {
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [filter, setFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('');
+  const [subcategoryFilter, setSubcategoryFilter] = useState<string>('');
   const [isDeleting, setIsDeleting] = useState<{ [key: string]: boolean }>({});
   const [deletionResults, setDeletionResults] = useState<{ [key: string]: 'success' | 'error' }>({});
+  const [editingItem, setEditingItem] = useState<string | null>(null);
+  const [editFormData, setEditFormData] = useState<{title: string, description: string}>({
+    title: '',
+    description: ''
+  });
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [selectedZipFile, setSelectedZipFile] = useState<File | null>(null);
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const zipInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   // Load content from localStorage
   useEffect(() => {
@@ -54,10 +103,273 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
     }
   };
 
-  // Filter content based on section
-  const filteredContent = filter === 'all' 
-    ? contentItems 
-    : contentItems.filter(item => item.section === filter);
+  // Filter content based on section, category, and subcategory
+  const filteredContent = contentItems.filter(item => {
+    // Filter by section if not 'all'
+    if (filter !== 'all' && item.section !== filter) {
+      return false;
+    }
+    
+    // Filter by category if selected
+    if (categoryFilter && item.category !== categoryFilter) {
+      return false;
+    }
+    
+    // Filter by subcategory if selected
+    if (subcategoryFilter && item.subcategory !== subcategoryFilter) {
+      return false;
+    }
+    
+    return true;
+  });
+
+  // Get unique categories and subcategories for the filtered section
+  const availableCategories = Array.from(
+    new Set(
+      contentItems
+        .filter(item => filter === 'all' || item.section === filter)
+        .map(item => item.category)
+    )
+  ).sort();
+  
+  const availableSubcategories = Array.from(
+    new Set(
+      contentItems
+        .filter(item => 
+          (filter === 'all' || item.section === filter) && 
+          (!categoryFilter || item.category === categoryFilter)
+        )
+        .filter(item => item.subcategory)
+        .map(item => item.subcategory)
+    )
+  ).sort();
+
+  // Handle editing content
+  const startEditing = (item: ContentItem) => {
+    setEditingItem(item.id);
+    setEditFormData({
+      title: item.title,
+      description: item.description
+    });
+    // Reset file selections
+    setSelectedImageFile(null);
+    setSelectedZipFile(null);
+    setSelectedVideoFile(null);
+    setUploadError(null);
+  };
+  
+  const handleEditChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({ ...prev, [name]: value }));
+  };
+  
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'zip' | 'video') => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      
+      if (type === 'image') {
+        setSelectedImageFile(file);
+      } else if (type === 'zip') {
+        setSelectedZipFile(file);
+      } else if (type === 'video') {
+        setSelectedVideoFile(file);
+      }
+      
+      setUploadError(null);
+    }
+  };
+  
+  const saveEdit = async (item: ContentItem) => {
+    // Validate if we have basic data
+    if (!editFormData.title.trim()) {
+      setUploadError('Title is required');
+      return;
+    }
+    
+    // Check if we're uploading any new files
+    const isUploadingFiles = selectedImageFile || selectedZipFile || selectedVideoFile;
+    
+    if (isUploadingFiles) {
+      setIsUploading(true);
+      setUploadProgress(0);
+      
+      try {
+        let newImageUrl = item.imageUrl;
+        let newImageFileId = item.fileId;
+        let newThumbnailUrl = item.thumbnailUrl;
+        let newZipUrl = item.zipUrl;
+        let newZipFileId = item.zipFileId;
+        let newVideoUrl = item.videoUrl;
+        let newVideoFileId = item.videoFileId;
+        
+        // Upload new image if selected
+        if (selectedImageFile) {
+          // Delete old image if exists
+          if (item.fileId) {
+            await deleteFile(item.fileId);
+          }
+          
+          // Set progress for image upload (33%)
+          setUploadProgress(10);
+          
+          const imageFileName = `${item.title.replace(/\s+/g, '-').toLowerCase()}-${Date.now()}`;
+          const imageUploadResult = await uploadImage(
+            selectedImageFile,
+            item.folder,
+            imageFileName
+          );
+          
+          setUploadProgress(33);
+          
+          if (imageUploadResult.success) {
+            newImageUrl = imageUploadResult.url;
+            newImageFileId = imageUploadResult.fileId;
+            newThumbnailUrl = imageUploadResult.thumbnailUrl;
+          } else {
+            throw new Error('Failed to upload image');
+          }
+        }
+        
+        // Upload new zip if selected
+        if (selectedZipFile) {
+          // Delete old zip if exists
+          if (item.zipFileId) {
+            await deleteFile(item.zipFileId);
+          }
+          
+          // Set progress for zip upload (33-66%)
+          setUploadProgress(40);
+          
+          const zipFileName = `${item.title.replace(/\s+/g, '-').toLowerCase()}-zip-${Date.now()}`;
+          const zipUploadResult = await uploadZip(
+            selectedZipFile,
+            item.folder,
+            zipFileName
+          );
+          
+          setUploadProgress(66);
+          
+          if (zipUploadResult.success) {
+            newZipUrl = zipUploadResult.url;
+            newZipFileId = zipUploadResult.fileId;
+          } else {
+            throw new Error('Failed to upload zip');
+          }
+        }
+        
+        // Upload new video if selected
+        if (selectedVideoFile) {
+          // Delete old video if exists
+          if (item.videoFileId) {
+            await deleteFile(item.videoFileId);
+          }
+          
+          // Set progress for video upload (66-100%)
+          setUploadProgress(75);
+          
+          const videoFileName = `${item.title.replace(/\s+/g, '-').toLowerCase()}-video-${Date.now()}`;
+          const videoUploadResult = await uploadVideo(
+            selectedVideoFile,
+            item.folder,
+            videoFileName
+          );
+          
+          setUploadProgress(100);
+          
+          if (videoUploadResult.success) {
+            newVideoUrl = videoUploadResult.url;
+            newVideoFileId = videoUploadResult.fileId;
+          } else {
+            throw new Error('Failed to upload video');
+          }
+        }
+        
+        // Update content in localStorage with new URLs
+        const siteContentJSON = localStorage.getItem('siteContent');
+        if (siteContentJSON) {
+          const parsedContent = JSON.parse(siteContentJSON);
+          
+          // Find and update the item
+          const updatedContent = parsedContent.map((contentItem: ContentItem) => {
+            if (contentItem.id === item.id) {
+              return {
+                ...contentItem,
+                title: editFormData.title,
+                description: editFormData.description,
+                imageUrl: newImageUrl,
+                fileId: newImageFileId,
+                thumbnailUrl: newThumbnailUrl,
+                zipUrl: newZipUrl,
+                zipFileId: newZipFileId,
+                videoUrl: newVideoUrl,
+                videoFileId: newVideoFileId
+              };
+            }
+            return contentItem;
+          });
+          
+          // Save back to localStorage
+          localStorage.setItem('siteContent', JSON.stringify(updatedContent));
+          
+          // Trigger update for any listeners
+          triggerStorageUpdate();
+        }
+      } catch (error) {
+        console.error('Error updating files:', error);
+        setUploadError('Error updating files. Please try again.');
+        setIsUploading(false);
+        return;
+      }
+      
+      setIsUploading(false);
+      setUploadProgress(0);
+    } else {
+      // Only update text fields
+      try {
+        // Get current content from localStorage
+        const siteContentJSON = localStorage.getItem('siteContent');
+        if (siteContentJSON) {
+          const parsedContent = JSON.parse(siteContentJSON);
+          
+          // Find and update the item
+          const updatedContent = parsedContent.map((contentItem: ContentItem) => {
+            if (contentItem.id === item.id) {
+              return {
+                ...contentItem,
+                title: editFormData.title,
+                description: editFormData.description
+              };
+            }
+            return contentItem;
+          });
+          
+          // Save back to localStorage
+          localStorage.setItem('siteContent', JSON.stringify(updatedContent));
+          
+          // Trigger update for any listeners
+          triggerStorageUpdate();
+        }
+      } catch (error) {
+        console.error('Error saving edit:', error);
+        setUploadError('Error saving changes. Please try again.');
+        return;
+      }
+    }
+    
+    // Reload the content
+    loadContent();
+    
+    // Exit edit mode
+    setEditingItem(null);
+  };
+  
+  const cancelEdit = () => {
+    setEditingItem(null);
+    setSelectedImageFile(null);
+    setSelectedZipFile(null);
+    setSelectedVideoFile(null);
+    setUploadError(null);
+  };
 
   // Handle deletion of content
   const handleDelete = async (item: ContentItem) => {
@@ -182,12 +494,16 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
           </div>
 
           {/* Filter tabs */}
-          <div className="mb-6 border-b border-border">
+          <div className="mb-4 border-b border-border">
             <div className="flex space-x-2">
               {['all', 'Artwork', 'Leaks', 'Banner Slider'].map((section) => (
                 <button
                   key={section}
-                  onClick={() => setFilter(section)}
+                  onClick={() => {
+                    setFilter(section);
+                    setCategoryFilter('');
+                    setSubcategoryFilter('');
+                  }}
                   className={`px-4 py-2 ${
                     filter === section 
                       ? 'border-b-2 border-primary text-primary' 
@@ -199,6 +515,46 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
               ))}
             </div>
           </div>
+
+          {/* Category and Subcategory filters - only show for Artwork and Leaks */}
+          {(filter === 'Artwork' || filter === 'Leaks') && (
+            <div className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Category filter */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Filter by Category</label>
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    setSubcategoryFilter('');
+                  }}
+                  className="w-full p-2 bg-background border border-border rounded-md"
+                >
+                  <option value="">All Categories</option>
+                  {availableCategories.map((category) => (
+                    <option key={category} value={category}>{category}</option>
+                  ))}
+                </select>
+              </div>
+              
+              {/* Subcategory filter */}
+              {availableSubcategories.length > 0 && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Filter by Subcategory</label>
+                  <select
+                    value={subcategoryFilter}
+                    onChange={(e) => setSubcategoryFilter(e.target.value)}
+                    className="w-full p-2 bg-background border border-border rounded-md"
+                  >
+                    <option value="">All Subcategories</option>
+                    {availableSubcategories.map((subcategory) => (
+                      <option key={subcategory} value={subcategory}>{subcategory}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Content list */}
           {filteredContent.length === 0 ? (
@@ -230,21 +586,173 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
                     )}
                   </div>
                   <div className="p-4">
-                    <h3 className="font-medium truncate">{item.title}</h3>
-                    <p className="text-sm text-muted-foreground truncate mb-2">{item.description}</p>
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        {item.section}
-                      </span>
-                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                        {item.category}
-                      </span>
-                      {item.subcategory && (
-                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                          {item.subcategory}
-                        </span>
-                      )}
-                    </div>
+                    {editingItem === item.id ? (
+                      <div className="space-y-3">
+                        {/* Basic info fields */}
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Title</label>
+                          <input
+                            type="text"
+                            name="title"
+                            value={editFormData.title}
+                            onChange={handleEditChange}
+                            className="w-full p-2 text-sm bg-background border border-border rounded-md"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1">Description</label>
+                          <textarea
+                            name="description"
+                            value={editFormData.description}
+                            onChange={handleEditChange}
+                            rows={2}
+                            className="w-full p-2 text-sm bg-background border border-border rounded-md"
+                          />
+                        </div>
+                        
+                        {/* File upload fields */}
+                        <div className="space-y-3 border-t border-border pt-3 mt-3">
+                          <h4 className="text-sm font-medium">Replace Content Files</h4>
+                          
+                          {/* Image upload */}
+                          {(item.imageUrl || !item.videoUrl) && (
+                            <div>
+                              <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-primary transition-colors">
+                                <button
+                                  type="button"
+                                  onClick={() => imageInputRef.current?.click()}
+                                  className="px-3 py-1.5 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 flex items-center gap-1"
+                                >
+                                  <Image className="w-3.5 h-3.5" />
+                                  {item.imageUrl ? 'Replace Image' : 'Add Image'}
+                                </button>
+                                {selectedImageFile && (
+                                  <span className="text-xs text-primary">{selectedImageFile.name}</span>
+                                )}
+                              </label>
+                              <input 
+                                type="file"
+                                ref={imageInputRef}
+                                onChange={(e) => handleFileChange(e, 'image')}
+                                accept="image/*"
+                                className="hidden"
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Zip upload */}
+                          {(item.zipUrl || (!item.videoUrl && !item.zipUrl)) && (
+                            <div>
+                              <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-primary transition-colors">
+                                <button
+                                  type="button"
+                                  onClick={() => zipInputRef.current?.click()}
+                                  className="px-3 py-1.5 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 flex items-center gap-1"
+                                >
+                                  <FileArchive className="w-3.5 h-3.5" />
+                                  {item.zipUrl ? 'Replace Zip' : 'Add Zip'}
+                                </button>
+                                {selectedZipFile && (
+                                  <span className="text-xs text-primary">{selectedZipFile.name}</span>
+                                )}
+                              </label>
+                              <input 
+                                type="file"
+                                ref={zipInputRef}
+                                onChange={(e) => handleFileChange(e, 'zip')}
+                                accept=".zip"
+                                className="hidden"
+                              />
+                            </div>
+                          )}
+                          
+                          {/* Video upload */}
+                          {(item.videoUrl || (!item.imageUrl && !item.zipUrl)) && (
+                            <div>
+                              <label className="flex items-center gap-2 text-sm cursor-pointer hover:text-primary transition-colors">
+                                <button
+                                  type="button"
+                                  onClick={() => videoInputRef.current?.click()}
+                                  className="px-3 py-1.5 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 flex items-center gap-1"
+                                >
+                                  <Video className="w-3.5 h-3.5" />
+                                  {item.videoUrl ? 'Replace Video' : 'Add Video'}
+                                </button>
+                                {selectedVideoFile && (
+                                  <span className="text-xs text-primary">{selectedVideoFile.name}</span>
+                                )}
+                              </label>
+                              <input 
+                                type="file"
+                                ref={videoInputRef}
+                                onChange={(e) => handleFileChange(e, 'video')}
+                                accept="video/*"
+                                className="hidden"
+                              />
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Upload progress */}
+                        {isUploading && (
+                          <div className="mt-2">
+                            <div className="h-1.5 w-full bg-secondary rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-primary rounded-full transition-all duration-300" 
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                            <p className="text-xs text-center mt-1 text-muted-foreground">
+                              Uploading... {uploadProgress}%
+                            </p>
+                          </div>
+                        )}
+                        
+                        {/* Error message */}
+                        {uploadError && (
+                          <div className="text-xs text-red-500 mt-1">
+                            {uploadError}
+                          </div>
+                        )}
+                        
+                        {/* Action buttons */}
+                        <div className="flex justify-end gap-2">
+                          <button
+                            onClick={cancelEdit}
+                            className="px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => saveEdit(item)}
+                            disabled={isUploading}
+                            className={`px-2 py-1 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 flex items-center gap-1 ${
+                              isUploading ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            <Check className="w-3 h-3" /> Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <h3 className="font-medium truncate">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground truncate mb-2">{item.description}</p>
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                            {item.section}
+                          </span>
+                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                            {item.category}
+                          </span>
+                          {item.subcategory && (
+                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                              {item.subcategory}
+                            </span>
+                          )}
+                        </div>
+                      </>
+                    )}
                     <div className="flex items-center justify-between mt-2">
                       <div className="text-xs text-muted-foreground">
                         {new Date(item.createdAt).toLocaleDateString()}
@@ -282,6 +790,17 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
                           >
                             <Video className="w-4 h-4" />
                           </a>
+                        )}
+                        {/* Edit button */}
+                        {!editingItem && (
+                          <button
+                            onClick={() => startEditing(item)}
+                            className="text-blue-500 hover:text-blue-700 transition-colors"
+                            aria-label="Edit content"
+                            title="Edit content"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
                         )}
                         <button
                           onClick={() => handleDelete(item)}
