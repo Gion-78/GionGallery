@@ -22,7 +22,7 @@ const About = () => {
         <div 
           className="absolute inset-0 bg-cover bg-center"
           style={{ 
-            backgroundImage: `url('')` 
+            backgroundImage: `url('https://ik.imagekit.io/GionGallery/BannerSlider/1743837255729_Kaido_image__VdOPgB0g.png?updatedAt=1743837266442')`  
           }}
         ></div>
         
