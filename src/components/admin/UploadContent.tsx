@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, Upload, Loader2 } from 'lucide-react';
+import { X, Upload, Loader2, Plus, Minus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { uploadImage, uploadZip, uploadVideo } from '../../lib/imagekit';
 import { triggerStorageUpdate } from '../../lib/utils';
@@ -56,6 +56,15 @@ const folderMapping: Record<string, string> = {
   'Banner Slider': 'BannerSlider'
 };
 
+interface ContentItem {
+  title: string;
+  description: string;
+  imageFile: File | null;
+  zipFile: File | null;
+  videoFile: File | null;
+  previewUrl: string;
+}
+
 interface UploadContentProps {
   isOpen: boolean;
   onClose: () => void;
@@ -69,15 +78,14 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
   const [activeSection, setActiveSection] = useState<'Artwork' | 'Leaks' | 'Banner Slider'>('Artwork');
   const [activeCategory, setActiveCategory] = useState<string>('');
   const [activeSubcategory, setActiveSubcategory] = useState<string>('');
-  const [title, setTitle] = useState<string>('');
-  const [description, setDescription] = useState<string>('');
-  const [imageFile, setImageFile] = useState<File | null>(null);
-  const [zipFile, setZipFile] = useState<File | null>(null);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [uploadInProgress, setUploadInProgress] = useState<boolean>(false);
   const [uploadSuccess, setUploadSuccess] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string>('');
-  const [previewUrl, setPreviewUrl] = useState<string>('');
+  
+  // Multiple content items support
+  const [contentItems, setContentItems] = useState<ContentItem[]>([
+    { title: '', description: '', imageFile: null, zipFile: null, videoFile: null, previewUrl: '' }
+  ]);
   
   // Check if user is admin
   const isAdmin = currentUser?.email === 'gionbusiness78@gmail.com';
@@ -101,70 +109,153 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
   
   // Reset the form
   const resetForm = () => {
-    setTitle('');
-    setDescription('');
-    setImageFile(null);
-    setZipFile(null);
-    setVideoFile(null);
+    setContentItems([
+      { title: '', description: '', imageFile: null, zipFile: null, videoFile: null, previewUrl: '' }
+    ]);
     setUploadSuccess(false);
     setUploadError('');
-    setPreviewUrl('');
   };
   
   // Handle image file selection
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setImageFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      setContentItems(items => {
+        const newItems = [...items];
+        newItems[index] = {
+          ...newItems[index],
+          imageFile: file,
+          previewUrl: URL.createObjectURL(file)
+        };
+        return newItems;
+      });
     }
   };
   
   // Handle zip file selection
-  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleZipChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setZipFile(file);
+      setContentItems(items => {
+        const newItems = [...items];
+        newItems[index] = {
+          ...newItems[index],
+          zipFile: file
+        };
+        return newItems;
+      });
     }
   };
   
   // Handle video file selection
-  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>, index: number) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setVideoFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      setContentItems(items => {
+        const newItems = [...items];
+        newItems[index] = {
+          ...newItems[index],
+          videoFile: file,
+          previewUrl: URL.createObjectURL(file)
+        };
+        return newItems;
+      });
     }
   };
   
   // Clear image selection
-  const clearImageSelection = () => {
-    setImageFile(null);
-    setPreviewUrl('');
+  const clearImageSelection = (index: number) => {
+    setContentItems(items => {
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        imageFile: null,
+        previewUrl: newItems[index].videoFile ? newItems[index].previewUrl : ''
+      };
+      return newItems;
+    });
   };
   
   // Clear zip selection
-  const clearZipSelection = () => {
-    setZipFile(null);
+  const clearZipSelection = (index: number) => {
+    setContentItems(items => {
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        zipFile: null
+      };
+      return newItems;
+    });
   };
   
   // Clear video selection
-  const clearVideoSelection = () => {
-    setVideoFile(null);
-    setPreviewUrl('');
+  const clearVideoSelection = (index: number) => {
+    setContentItems(items => {
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        videoFile: null,
+        previewUrl: newItems[index].imageFile ? newItems[index].previewUrl : ''
+      };
+      return newItems;
+    });
+  };
+  
+  // Add content item (unlimited)
+  const addContentItem = () => {
+    setContentItems([
+      ...contentItems,
+      { title: '', description: '', imageFile: null, zipFile: null, videoFile: null, previewUrl: '' }
+    ]);
+  };
+  
+  // Remove content item
+  const removeContentItem = (index: number) => {
+    if (contentItems.length > 1) {
+      setContentItems(items => items.filter((_, i) => i !== index));
+    }
+  };
+  
+  // Update content item title
+  const updateContentItemTitle = (index: number, title: string) => {
+    setContentItems(items => {
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        title
+      };
+      return newItems;
+    });
+  };
+  
+  // Update content item description
+  const updateContentItemDescription = (index: number, description: string) => {
+    setContentItems(items => {
+      const newItems = [...items];
+      newItems[index] = {
+        ...newItems[index],
+        description
+      };
+      return newItems;
+    });
   };
   
   // Handle form submission
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form based on category type
-    if (!title && activeSection !== 'Banner Slider') {
-      setUploadError('Title is required');
+    // Filter out empty content items
+    const filledContentItems = contentItems.filter(item => 
+      (item.imageFile || item.zipFile || item.videoFile) && 
+      (activeSection === 'Banner Slider' || item.title.trim() !== '')
+    );
+    
+    if (filledContentItems.length === 0) {
+      setUploadError('Please add at least one content item with required fields');
       return;
     }
     
-    // Determine the upload type and file
+    // Determine the upload type
     const currentCategory = activeSubcategory || activeCategory;
     let uploadType = 'single-image';
     let categoryType: any = categoryStructure;
@@ -184,115 +275,115 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
       uploadType = categoryStructure['Banner Slider'].type;
     }
     
-    // Validate files
-    if (uploadType === 'single-image' && !imageFile) {
-      setUploadError('Please select an image to upload');
-      return;
-    } else if (uploadType === 'image-zip' && (!imageFile || !zipFile)) {
-      setUploadError('Please select both image and zip file to upload');
-      return;
-    } else if (uploadType === 'video' && !videoFile) {
-      setUploadError('Please select a video to upload');
-      return;
-    }
-    
     // Start upload
     setUploadInProgress(true);
     setUploadError('');
     
     try {
-      const folder = folderMapping[currentCategory] || 'Misc';
-      const fileName = `${Date.now()}_${title.replace(/\s+/g, '_')}`;
-      
-      // Results to store
-      let imageResult: any = null;
-      let zipResult: any = null;
-      let videoResult: any = null;
-      
-      // Upload image
-      if (imageFile && (uploadType === 'single-image' || uploadType === 'image-zip')) {
-        imageResult = await uploadImage(imageFile, folder, `${fileName}_image.${imageFile.name.split('.').pop()}`);
-        if (!imageResult.success) {
-          throw new Error('Failed to upload image');
-        }
-      }
-      
-      // Upload zip if required
-      if (zipFile && uploadType === 'image-zip') {
-        zipResult = await uploadZip(zipFile, folder, `${fileName}_zip.${zipFile.name.split('.').pop()}`);
-        if (!zipResult.success) {
-          throw new Error('Failed to upload zip file');
-        }
-      }
-      
-      // Upload video if required
-      if (videoFile && uploadType === 'video') {
-        // Save original file details before upload for reference
-        const originalVideoSize = videoFile.size;
-        const originalVideoName = videoFile.name;
-        const originalVideoType = videoFile.type;
-        
-        videoResult = await uploadVideo(videoFile, folder, `${fileName}_video.${videoFile.name.split('.').pop()}`);
-        if (!videoResult.success) {
-          throw new Error('Failed to upload video');
+      // Process each content item
+      for (const item of filledContentItems) {
+        // Validate files for current item
+        if (uploadType === 'single-image' && !item.imageFile) {
+          throw new Error('Please select an image to upload for all content items');
+        } else if (uploadType === 'image-zip' && (!item.imageFile || !item.zipFile)) {
+          throw new Error('Please select both image and zip file to upload for all content items');
+        } else if (uploadType === 'video' && !item.videoFile) {
+          throw new Error('Please select a video to upload for all content items');
         }
         
-        // Add original video metadata to the video result
-        videoResult.originalSize = originalVideoSize;
-        videoResult.originalName = originalVideoName;
-        videoResult.originalType = originalVideoType;
-      }
-      
-      // Create metadata for the upload
-      const metadata = {
-        id: Date.now().toString(),
-        title,
-        description,
-        section: activeSection,
-        category: activeCategory,
-        subcategory: activeSubcategory,
-        imageUrl: imageResult?.url || null,
-        thumbnailUrl: imageResult?.thumbnailUrl || null,
-        zipUrl: zipResult?.url || null,
-        videoUrl: videoResult?.url || null,
-        fileId: imageResult?.fileId || null,
-        zipFileId: zipResult?.fileId || null,
-        videoFileId: videoResult?.fileId || null,
-        // Add the original video details if available
-        videoMetadata: videoResult ? {
-          originalSize: videoResult.originalSize,
-          originalName: videoResult.originalName,
-          originalType: videoResult.originalType
-        } : null,
-        createdAt: new Date().toISOString(),
-        folder
-      };
-      
-      console.log('Saving content with metadata:', metadata);
-      
-      // Get existing content or initialize empty array
-      const existingContentJSON = localStorage.getItem('siteContent') || '[]';
-      const existingContent = JSON.parse(existingContentJSON);
-      
-      // Add new content
-      existingContent.push(metadata);
-      
-      // Save back to storage
-      localStorage.setItem('siteContent', JSON.stringify(existingContent));
-      
-      // If this is a banner slider item, also update the banners
-      if (metadata.section === 'Banner Slider' && metadata.imageUrl) {
-        const existingBannersJSON = localStorage.getItem('banners') || '[]';
-        const existingBanners = JSON.parse(existingBannersJSON);
+        const folder = folderMapping[currentCategory] || 'Misc';
+        const fileName = `${Date.now()}_${item.title.replace(/\s+/g, '_')}`;
         
-        existingBanners.push({
-          id: metadata.id,
-          title: metadata.title,
-          description: metadata.description || '',
-          imageUrl: metadata.imageUrl
-        });
+        // Results to store
+        let imageResult: any = null;
+        let zipResult: any = null;
+        let videoResult: any = null;
         
-        localStorage.setItem('banners', JSON.stringify(existingBanners));
+        // Upload image
+        if (item.imageFile && (uploadType === 'single-image' || uploadType === 'image-zip')) {
+          imageResult = await uploadImage(item.imageFile, folder, `${fileName}_image.${item.imageFile.name.split('.').pop()}`);
+          if (!imageResult.success) {
+            throw new Error('Failed to upload image');
+          }
+        }
+        
+        // Upload zip if required
+        if (item.zipFile && uploadType === 'image-zip') {
+          zipResult = await uploadZip(item.zipFile, folder, `${fileName}_zip.${item.zipFile.name.split('.').pop()}`);
+          if (!zipResult.success) {
+            throw new Error('Failed to upload zip file');
+          }
+        }
+        
+        // Upload video if required
+        if (item.videoFile && uploadType === 'video') {
+          // Save original file details before upload for reference
+          const originalVideoSize = item.videoFile.size;
+          const originalVideoName = item.videoFile.name;
+          const originalVideoType = item.videoFile.type;
+          
+          videoResult = await uploadVideo(item.videoFile, folder, `${fileName}_video.${item.videoFile.name.split('.').pop()}`);
+          if (!videoResult.success) {
+            throw new Error('Failed to upload video');
+          }
+          
+          // Add original video metadata to the video result
+          videoResult.originalSize = originalVideoSize;
+          videoResult.originalName = originalVideoName;
+          videoResult.originalType = originalVideoType;
+        }
+        
+        // Create metadata for the upload
+        const metadata = {
+          id: Date.now().toString(),
+          title: item.title,
+          description: item.description,
+          section: activeSection,
+          category: activeCategory,
+          subcategory: activeSubcategory,
+          imageUrl: imageResult?.url || null,
+          thumbnailUrl: imageResult?.thumbnailUrl || null,
+          zipUrl: zipResult?.url || null,
+          videoUrl: videoResult?.url || null,
+          fileId: imageResult?.fileId || null,
+          zipFileId: zipResult?.fileId || null,
+          videoFileId: videoResult?.fileId || null,
+          // Add the original video details if available
+          videoMetadata: videoResult ? {
+            originalSize: videoResult.originalSize,
+            originalName: videoResult.originalName,
+            originalType: videoResult.originalType
+          } : null,
+          createdAt: new Date().toISOString(),
+          folder
+        };
+        
+        console.log('Saving content with metadata:', metadata);
+        
+        // Get existing content or initialize empty array
+        const existingContentJSON = localStorage.getItem('siteContent') || '[]';
+        const existingContent = JSON.parse(existingContentJSON);
+        
+        // Add new content
+        existingContent.push(metadata);
+        
+        // Save back to storage
+        localStorage.setItem('siteContent', JSON.stringify(existingContent));
+        
+        // If this is a banner slider item, also update the banners
+        if (metadata.section === 'Banner Slider' && metadata.imageUrl) {
+          const existingBannersJSON = localStorage.getItem('banners') || '[]';
+          const existingBanners = JSON.parse(existingBannersJSON);
+          
+          existingBanners.push({
+            id: metadata.id,
+            title: metadata.title,
+            description: metadata.description || '',
+            imageUrl: metadata.imageUrl
+          });
+          
+          localStorage.setItem('banners', JSON.stringify(existingBanners));
+        }
       }
       
       // Trigger updates across components
@@ -391,8 +482,8 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
                       required
                     >
                       <option value="">Select Category</option>
-                      {Object.keys(categoryStructure[activeSection]).map((category) => (
-                        <option key={category} value={category}>{category}</option>
+                      {Object.keys(categoryStructure[activeSection]).map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
                       ))}
                     </select>
                   </div>
@@ -417,146 +508,175 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
                   </div>
                 )}
                 
-                {/* Title Field - Required for everything except Banner Slider */}
-                {(activeCategory || activeSection === 'Banner Slider') && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">
-                      Title {activeSection !== 'Banner Slider' && <span className="text-red-500">*</span>}
-                    </label>
-                    <input
-                      type="text"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      className="w-full p-2 bg-background border border-border rounded-md"
-                      required={activeSection !== 'Banner Slider'}
-                    />
-                  </div>
-                )}
-                
-                {/* Description Field - Optional for all */}
-                {(activeCategory || activeSection === 'Banner Slider') && (
-                  <div>
-                    <label className="block text-sm font-medium mb-2">Description (Optional)</label>
-                    <textarea
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      className="w-full p-2 bg-background border border-border rounded-md h-24"
-                    ></textarea>
-                  </div>
-                )}
-                
-                {/* Upload UI based on category type */}
-                {currentUploadType && (
-                  <div className="space-y-4">
-                    <h3 className="font-medium">Upload Files</h3>
+                {/* Content Items */}
+                {currentUploadType && (activeCategory || activeSection === 'Banner Slider') && (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <h3 className="font-medium">Content Items ({contentItems.length})</h3>
+                      <button
+                        type="button"
+                        onClick={addContentItem}
+                        className="text-primary hover:text-primary/90 transition-colors flex items-center gap-1"
+                      >
+                        <Plus className="w-4 h-4" /> Add Item
+                      </button>
+                    </div>
                     
-                    {/* Image Upload Button for single-image and image-zip */}
-                    {(currentUploadType === 'single-image' || currentUploadType === 'image-zip') && (
-                      <div className="flex items-center space-x-3">
-                        <label className="relative cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-md flex items-center gap-2">
-                          <Upload className="w-4 h-4" />
-                          <span>Upload Image</span>
-                          <input
-                            type="file"
-                            accept="image/*"
-                            onChange={handleImageChange}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
-                        </label>
-                        {imageFile && (
-                          <button
-                            type="button"
-                            onClick={clearImageSelection}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                            aria-label="Remove image"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        )}
-                        {imageFile && (
-                          <span className="text-sm text-muted-foreground truncate max-w-[150px]">
-                            {imageFile.name}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Zip Upload Button for image-zip */}
-                    {currentUploadType === 'image-zip' && (
-                      <div className="flex items-center space-x-3">
-                        <label className="relative cursor-pointer bg-secondary hover:bg-secondary/90 text-secondary-foreground px-4 py-2 rounded-md flex items-center gap-2">
-                          <Upload className="w-4 h-4" />
-                          <span>Upload Zip File</span>
-                          <input
-                            type="file"
-                            accept=".zip"
-                            onChange={handleZipChange}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
-                        </label>
-                        {zipFile && (
-                          <button
-                            type="button"
-                            onClick={clearZipSelection}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                            aria-label="Remove zip file"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        )}
-                        {zipFile && (
-                          <span className="text-sm text-muted-foreground truncate max-w-[150px]">
-                            {zipFile.name}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Video Upload Button for video */}
-                    {currentUploadType === 'video' && (
-                      <div className="flex items-center space-x-3">
-                        <label className="relative cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-md flex items-center gap-2">
-                          <Upload className="w-4 h-4" />
-                          <span>Upload Video</span>
-                          <input
-                            type="file"
-                            accept="video/*"
-                            onChange={handleVideoChange}
-                            className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
-                        </label>
-                        {videoFile && (
-                          <button
-                            type="button"
-                            onClick={clearVideoSelection}
-                            className="text-muted-foreground hover:text-foreground transition-colors"
-                            aria-label="Remove video"
-                          >
-                            <X className="w-5 h-5" />
-                          </button>
-                        )}
-                        {videoFile && (
-                          <span className="text-sm text-muted-foreground truncate max-w-[150px]">
-                            {videoFile.name}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    
-                    {/* Preview */}
-                    {previewUrl && (
-                      <div className="mt-4">
-                        <h4 className="text-sm font-medium mb-2">Preview</h4>
-                        <div className="border border-border rounded-md overflow-hidden w-full max-w-[300px] h-auto">
-                          {currentUploadType === 'video' ? (
-                            <video src={previewUrl} controls className="w-full h-auto" />
-                          ) : (
-                            <img src={previewUrl} alt="Preview" className="w-full h-auto" />
-                          )}
+                    <div className="space-y-6">
+                      {contentItems.map((item, index) => (
+                        <div key={index} className="border border-border rounded-lg p-4 space-y-4">
+                          <div className="flex justify-between items-center">
+                            <h4 className="font-medium">Item {index + 1}</h4>
+                            {contentItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => removeContentItem(index)}
+                                className="text-destructive hover:text-destructive/90 transition-colors flex items-center gap-1"
+                              >
+                                <Minus className="w-4 h-4" /> Remove
+                              </button>
+                            )}
+                          </div>
+                          
+                          {/* Title Field */}
+                          <div>
+                            <label className="block text-sm font-medium mb-2">
+                              Title {activeSection !== 'Banner Slider' && <span className="text-red-500">*</span>}
+                            </label>
+                            <input
+                              type="text"
+                              value={item.title}
+                              onChange={(e) => updateContentItemTitle(index, e.target.value)}
+                              className="w-full p-2 bg-background border border-border rounded-md"
+                              required={activeSection !== 'Banner Slider'}
+                            />
+                          </div>
+                          
+                          {/* Description Field */}
+                          <div>
+                            <label className="block text-sm font-medium mb-2">Description (Optional)</label>
+                            <textarea
+                              value={item.description}
+                              onChange={(e) => updateContentItemDescription(index, e.target.value)}
+                              className="w-full p-2 bg-background border border-border rounded-md h-24"
+                            ></textarea>
+                          </div>
+                          
+                          {/* Upload Files */}
+                          <div className="space-y-4">
+                            <h5 className="font-medium text-sm">Upload Files</h5>
+                            
+                            {/* Image Upload Button */}
+                            {(currentUploadType === 'single-image' || currentUploadType === 'image-zip') && (
+                              <div className="flex items-center space-x-3">
+                                <label className="relative cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-md flex items-center gap-2">
+                                  <Upload className="w-4 h-4" />
+                                  <span>Upload Image</span>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => handleImageChange(e, index)}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                  />
+                                </label>
+                                {item.imageFile && (
+                                  <button
+                                    type="button"
+                                    onClick={() => clearImageSelection(index)}
+                                    className="text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label="Remove image"
+                                  >
+                                    <X className="w-5 h-5" />
+                                  </button>
+                                )}
+                                {item.imageFile && (
+                                  <span className="text-sm text-muted-foreground truncate max-w-[150px]">
+                                    {item.imageFile.name}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Zip Upload Button */}
+                            {currentUploadType === 'image-zip' && (
+                              <div className="flex items-center space-x-3">
+                                <label className="relative cursor-pointer bg-secondary hover:bg-secondary/90 text-secondary-foreground px-4 py-2 rounded-md flex items-center gap-2">
+                                  <Upload className="w-4 h-4" />
+                                  <span>Upload Zip File</span>
+                                  <input
+                                    type="file"
+                                    accept=".zip"
+                                    onChange={(e) => handleZipChange(e, index)}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                  />
+                                </label>
+                                {item.zipFile && (
+                                  <button
+                                    type="button"
+                                    onClick={() => clearZipSelection(index)}
+                                    className="text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label="Remove zip file"
+                                  >
+                                    <X className="w-5 h-5" />
+                                  </button>
+                                )}
+                                {item.zipFile && (
+                                  <span className="text-sm text-muted-foreground truncate max-w-[150px]">
+                                    {item.zipFile.name}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Video Upload Button */}
+                            {currentUploadType === 'video' && (
+                              <div className="flex items-center space-x-3">
+                                <label className="relative cursor-pointer bg-primary hover:bg-primary/90 text-primary-foreground px-4 py-2 rounded-md flex items-center gap-2">
+                                  <Upload className="w-4 h-4" />
+                                  <span>Upload Video</span>
+                                  <input
+                                    type="file"
+                                    accept="video/*"
+                                    onChange={(e) => handleVideoChange(e, index)}
+                                    className="absolute inset-0 opacity-0 cursor-pointer"
+                                  />
+                                </label>
+                                {item.videoFile && (
+                                  <button
+                                    type="button"
+                                    onClick={() => clearVideoSelection(index)}
+                                    className="text-muted-foreground hover:text-foreground transition-colors"
+                                    aria-label="Remove video"
+                                  >
+                                    <X className="w-5 h-5" />
+                                  </button>
+                                )}
+                                {item.videoFile && (
+                                  <span className="text-sm text-muted-foreground truncate max-w-[150px]">
+                                    {item.videoFile.name}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            
+                            {/* Preview */}
+                            {item.previewUrl && (
+                              <div className="mt-4">
+                                <h5 className="text-sm font-medium mb-2">Preview</h5>
+                                <div className="border border-border rounded-md overflow-hidden w-full max-w-[300px] h-auto">
+                                  {currentUploadType === 'video' && item.videoFile ? (
+                                    <video src={item.previewUrl} controls className="w-full h-auto" />
+                                  ) : (
+                                    <img src={item.previewUrl} alt="Preview" className="w-full h-auto" />
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      ))}
+                    </div>
+                  </>
                 )}
                 
                 {/* Error message */}
@@ -597,57 +717,5 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
     </>
   );
 };
-
-// Function to save metadata to localStorage
-// This is a simple solution for development - in production you'd use a database
-const saveContentMetadata = async (metadata: {
-  id: string;
-  title: string;
-  description: string;
-  section: string;
-  category: string;
-  subcategory?: string;
-  imageUrl: string | null;
-  thumbnailUrl: string | null;
-  zipUrl: string | null;
-  videoUrl: string | null;
-  fileId: string | null;
-  zipFileId: string | null;
-  videoFileId: string | null;
-  createdAt: string;
-  folder: string;
-}) => {
-  try {
-    // Get existing content or initialize empty array
-    const existingContentJSON = localStorage.getItem('siteContent') || '[]';
-    const existingContent = JSON.parse(existingContentJSON);
-    
-    // Add new content
-    existingContent.push(metadata);
-    
-    // Save back to storage
-    localStorage.setItem('siteContent', JSON.stringify(existingContent));
-    
-    // If this is a banner slider item, also update the banners
-    if (metadata.section === 'Banner Slider' && metadata.imageUrl) {
-      const existingBannersJSON = localStorage.getItem('banners') || '[]';
-      const existingBanners = JSON.parse(existingBannersJSON);
-      
-      existingBanners.push({
-        id: metadata.id,
-        title: metadata.title,
-        description: metadata.description || '',
-        imageUrl: metadata.imageUrl
-      });
-      
-      localStorage.setItem('banners', JSON.stringify(existingBanners));
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('Error saving content metadata:', error);
-    throw error;
-  }
-}
 
 export default UploadContent; 

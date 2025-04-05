@@ -158,6 +158,9 @@ const GalleryGrid = ({
 }: GalleryGridProps) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [paginatedItems, setPaginatedItems] = useState<GalleryItem[]>([]);
+  
+  // Force Resources category to always use 15 items per page
+  const effectiveItemsPerPage = category === 'Resources' ? 15 : itemsPerPage;
 
   useEffect(() => {
     // Get items for the selected category
@@ -213,7 +216,7 @@ const GalleryGrid = ({
     }
 
     // When items change, ensure current page is valid
-    const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+    const totalPages = Math.ceil(filteredItems.length / effectiveItemsPerPage);
     if (currentPage > totalPages && totalPages > 0) {
       // If current page is beyond total pages, set it to the last valid page
       const validPage = Math.max(1, totalPages);
@@ -223,7 +226,7 @@ const GalleryGrid = ({
         setTimeout(() => onTotalItemsChange(filteredItems.length), 0);
       }
     }
-  }, [category, searchQuery, sortOption, onTotalItemsChange, currentPage, itemsPerPage]);
+  }, [category, searchQuery, sortOption, onTotalItemsChange, currentPage, effectiveItemsPerPage]);
 
   // Listen for storage changes
   useEffect(() => {
@@ -291,15 +294,15 @@ const GalleryGrid = ({
 
   useEffect(() => {
     // Calculate paginated items
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
+    const startIndex = (currentPage - 1) * effectiveItemsPerPage;
+    const endIndex = startIndex + effectiveItemsPerPage;
     const paginatedResult = items.slice(startIndex, endIndex);
     setPaginatedItems(paginatedResult);
     
     // If no items are shown but we have items and we're not on the first page
     // this likely means we need to adjust the current page
     if (paginatedResult.length === 0 && items.length > 0 && currentPage > 1) {
-      const totalPages = Math.ceil(items.length / itemsPerPage);
+      const totalPages = Math.ceil(items.length / effectiveItemsPerPage);
       const validPage = Math.min(currentPage, totalPages);
       
       if (validPage !== currentPage && onTotalItemsChange) {
@@ -307,7 +310,7 @@ const GalleryGrid = ({
         setTimeout(() => onTotalItemsChange(items.length), 0);
       }
     }
-  }, [items, currentPage, itemsPerPage, onTotalItemsChange]);
+  }, [items, currentPage, effectiveItemsPerPage, onTotalItemsChange]);
 
   const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement>, item: GalleryItem) => {
     e.preventDefault();
@@ -464,7 +467,19 @@ const GalleryGrid = ({
           ? category === 'Characters' 
             ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center'
             : category === 'Portraits'
-              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2'
+              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-center p-0'
+            : category === 'Character Titles'
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center'
+            : category === 'Event Titles'
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center'
+            : category === 'Character Frames'
+              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-center p-0'
+            : category === 'Event Frames'
+              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-center p-0'
+            : category === 'Emblems'
+              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 justify-items-center p-0'
+            : category === 'Resources'
+              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 xl:grid-cols-5 gap-4 justify-items-center p-0 grid-rows-3'
             : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
           : 'columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6'
       }`}>
@@ -473,7 +488,13 @@ const GalleryGrid = ({
             <div
               key={item.id}
               className={`group relative overflow-hidden rounded-lg ${
-                category === 'Portraits' ? 'mb-2' : 'mb-6'
+                category === 'Portraits' ? 'mb-0' : 
+                category === 'Character Titles' ? 'mb-6' : 
+                category === 'Event Titles' ? 'mb-6' :
+                category === 'Character Frames' ? 'mb-0' : 
+                category === 'Event Frames' ? 'mb-0' : 
+                category === 'Emblems' ? 'mb-0' : 
+                category === 'Resources' ? 'mb-6' : 'mb-6'
               } ${viewMode === 'grid' ? '' : 'break-inside-avoid'} ${
                 category === 'Character Banners' 
                   ? 'border border-primary/50 shadow-sm' 
@@ -490,8 +511,22 @@ const GalleryGrid = ({
                       ? { maxWidth: '480px', margin: '0 auto', aspectRatio: '2/1' }
                       : category === 'Login Screens'
                         ? { maxWidth: '780px', margin: '0 auto', aspectRatio: '13/8' }
+                        : category === 'Cutscenes'
+                          ? { maxWidth: '1024px', margin: '0 auto', aspectRatio: '2/1' }
                         : category === 'Portraits'
-                          ? { maxWidth: '128px', margin: '0 auto' }
+                          ? { width: '100%', margin: '0', padding: '0' }
+                        : category === 'Character Titles'
+                          ? { width: '100%', margin: '0', padding: '0' }
+                        : category === 'Event Titles'
+                          ? { width: '100%', margin: '0', padding: '0' }
+                        : category === 'Character Frames'
+                          ? { width: '100%', margin: '0', padding: '0' }
+                        : category === 'Event Frames'
+                          ? { width: '100%', margin: '0', padding: '0' }
+                        : category === 'Emblems'
+                          ? { width: '100%', margin: '0', padding: '0' }
+                        : category === 'Resources'
+                          ? { width: '100%', margin: '0', padding: '0' }
                         : { aspectRatio: '3/4' })
                 : {}}
             >
@@ -545,8 +580,23 @@ const GalleryGrid = ({
                   <div className={category === 'Characters' ? 'h-[320px] flex items-center justify-center' : 
                                category === 'Character Banners' || category === 'Event Banners' ? 
                                'h-auto flex items-center justify-center' : 
+                               category === 'Cutscenes' ?
+                               'h-auto flex items-center justify-center' :
                                category === 'Portraits' ?
-                               'h-[128px] flex items-center justify-center' : 'h-full'}>
+                               'h-[128px] flex items-center justify-center' : 
+                               category === 'Character Titles' ?
+                               'h-[140px] flex items-center justify-center' : 
+                               category === 'Event Titles' ?
+                               'h-[140px] flex items-center justify-center' :
+                               category === 'Character Frames' ?
+                               'h-[128px] flex items-center justify-center' :
+                               category === 'Event Frames' ?
+                               'h-[128px] flex items-center justify-center' :
+                               category === 'Emblems'
+                               ? 'h-[150px] flex items-center justify-center bg-background/30 rounded-md'
+                               : category === 'Resources'
+                               ? 'h-[160px] flex items-center justify-center bg-background/20 rounded-md'
+                               : 'h-full'}>
                     <img
                       src={item.imageUrl}
                       alt={item.title}
@@ -555,10 +605,45 @@ const GalleryGrid = ({
                           ? 'max-h-full max-w-full object-contain' 
                           : category === 'Character Banners' || category === 'Event Banners'
                             ? 'w-full h-auto object-contain' 
+                            : category === 'Cutscenes'
+                              ? 'w-full h-auto object-contain'
                             : category === 'Portraits'
-                              ? 'max-h-[210px] max-w-[210px] object-contain' 
+                              ? 'max-h-full max-w-full object-contain' 
+                            : category === 'Character Titles'
+                              ? 'max-h-full max-w-full object-contain' 
+                            : category === 'Event Titles'
+                              ? 'max-h-[160px] max-w-[330px] w-auto h-auto object-contain'
+                            : category === 'Character Frames'
+                              ? 'max-h-[128px] max-w-[128px] w-auto h-auto object-contain'
+                            : category === 'Event Frames'
+                              ? 'max-h-[128px] max-w-[128px] w-auto h-auto object-contain'
+                            : category === 'Emblems'
+                              ? 'max-h-[120px] max-w-[120px] w-auto h-auto object-contain scale-150 hover:scale-[1.8] transition-transform'
+                            : category === 'Resources'
+                              ? 'max-h-[160px] max-w-[300px] w-auto h-auto object-contain'
                             : 'w-full h-full object-cover'
                       }`}
+                      onLoad={(e) => {
+                        // Apply automatic scaling for Resources category only
+                        if (category === 'Resources') {
+                          const img = e.target as HTMLImageElement;
+                          // Remove transition to eliminate any zooming effect
+                          img.style.transition = 'none';
+                          
+                          // Scale for very small images (less than 50x50)
+                          if (img.naturalWidth < 50 || img.naturalHeight < 50) {
+                            img.style.transform = 'scale(3)';
+                          }
+                          // Scale for small images
+                          else if (img.naturalWidth < 100 || img.naturalHeight < 85) {
+                            img.style.transform = 'scale(2.5)';
+                          } 
+                          // Scale for medium-sized images
+                          else if (img.naturalWidth < 200 || img.naturalHeight < 120) {
+                            img.style.transform = 'scale(1.2)';
+                          }
+                        }
+                      }}
                       loading="lazy"
                     />
                   </div>
