@@ -192,13 +192,11 @@ const CharacterSkillsPanel = ({
   }, [searchQuery, sortOption]);
 
   const openLightbox = (item: GalleryItem) => {
-    setSelectedItem(item);
-    document.body.style.overflow = 'hidden';
+    // Functionality removed
   };
 
   const closeLightbox = () => {
-    setSelectedItem(null);
-    document.body.style.overflow = 'auto';
+    // Functionality removed
   };
 
   const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement>, item: GalleryItem) => {
@@ -240,40 +238,35 @@ const CharacterSkillsPanel = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center">
         {items.length > 0 ? (
           items.map((item) => (
             <div 
               key={item.id}
-              className="group relative overflow-hidden rounded-lg mb-6"
-              style={{ aspectRatio: '3/4' }}
+              className="relative overflow-hidden rounded-lg mb-6 border border-primary/30 shadow-sm"
+              style={{ maxWidth: '480px', maxHeight: '400px' }}
             >
-              <img 
-                src={item.imageUrl} 
-                alt={item.title}
-                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
-                <p className="text-sm text-muted-foreground mb-4">{item.description}</p>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => openLightbox(item)}
-                    className="p-2 bg-primary text-primary-foreground rounded-full"
-                    aria-label="View skill"
-                  >
-                    <Eye className="w-4 h-4" />
-                  </button>
-                  <a 
-                    href={item.downloadUrl || item.imageUrl} 
-                    onClick={(e) => handleDownload(e, item)}
-                    download={item.title}
-                    className="p-2 bg-secondary text-secondary-foreground rounded-full"
-                    aria-label="Download skill image"
-                  >
-                    <Download className="w-4 h-4" />
-                  </a>
+              <div className="relative">
+                <img 
+                  src={item.imageUrl} 
+                  alt={item.title}
+                  className="w-full h-auto object-contain max-h-[400px] rounded"
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 flex flex-col justify-end p-4">
+                  <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground mb-2">{item.description}</p>
+                  <div className="flex">
+                    <a 
+                      href={item.downloadUrl || item.imageUrl} 
+                      onClick={(e) => handleDownload(e, item)}
+                      download={item.title}
+                      className="p-2 bg-secondary text-secondary-foreground rounded-full"
+                      aria-label="Download skill image"
+                    >
+                      <Download className="w-4 h-4" />
+                    </a>
+                  </div>
                 </div>
               </div>
             </div>
@@ -285,35 +278,7 @@ const CharacterSkillsPanel = ({
         )}
       </div>
 
-      {/* Lightbox */}
-      {selectedItem && (
-        <div 
-          className="fixed inset-0 z-50 bg-background/90 backdrop-blur-lg flex items-center justify-center p-4"
-          onClick={closeLightbox}
-        >
-          <div 
-            className="relative max-w-5xl max-h-[90vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img 
-              src={selectedItem.imageUrl} 
-              alt={selectedItem.title}
-              className="w-full h-full object-contain"
-            />
-            <button 
-              onClick={closeLightbox}
-              className="absolute top-4 right-4 p-2 bg-background/50 backdrop-blur-sm text-foreground rounded-full"
-              aria-label="Close lightbox"
-            >
-              <X className="w-6 h-6" />
-            </button>
-            <div className="absolute bottom-0 left-0 right-0 bg-background/70 backdrop-blur-sm p-4">
-              <h3 className="text-lg font-semibold text-foreground">{selectedItem.title}</h3>
-              <p className="text-sm text-muted-foreground">{selectedItem.description}</p>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Lightbox removed */}
     </>
   );
 };

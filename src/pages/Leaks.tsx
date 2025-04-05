@@ -26,7 +26,6 @@ interface SortOption {
 
 const Leaks = () => {
   const [activeCategory, setActiveCategory] = useState<'Main Leaks' | 'Beta Leaks'>("Main Leaks");
-  const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [totalItems, setTotalItems] = useState<number>(0);
   
@@ -49,13 +48,13 @@ const Leaks = () => {
     };
   }, []);
 
-  // Reset page when category or search changes
+  // Reset page when category changes
   useEffect(() => {
     setCurrentPage(1);
     
     // Debug info
     console.log(`Active category changed to: ${activeCategory}`);
-  }, [activeCategory, searchQuery]);
+  }, [activeCategory]);
 
   // Handle page change
   const handlePageChange = (newPage: number) => {
@@ -137,26 +136,13 @@ const Leaks = () => {
           </div>
           
           {/* Search Bar with Enhanced Filter Dropdown */}
-          <div className="mb-6 flex justify-center">
+          <div className="mb-6 flex justify-end">
             <div className="flex items-center">
-              <div className="relative w-80">
-                <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
-                  <Search className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <input
-                  type="text"
-                  className="bg-secondary/50 border border-border/30 text-foreground rounded-md block w-full pl-10 p-2.5 focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all duration-200"
-                  placeholder={`Search ${activeCategory.toLowerCase()}...`}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              </div>
-              
               {/* New Filter Dropdown Menu */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="bg-secondary/50 border border-border/30 text-foreground rounded-md p-2.5 hover:bg-secondary transition-all duration-200 ml-2"
+                    className="bg-secondary/50 border border-border/30 text-foreground rounded-md p-2.5 hover:bg-secondary transition-all duration-200"
                     aria-label="Filter options"
                   >
                     <span className="sr-only">Sort by</span>
@@ -224,7 +210,7 @@ const Leaks = () => {
             {/* Use our specialized LeaksGallery component */}
             <LeaksGallery 
               category={activeCategory}
-              searchQuery={searchQuery}
+              searchQuery=""
               sortOption={sortOptions[activeCategory]}
               onTotalItemsChange={setTotalItems}
             />

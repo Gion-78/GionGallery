@@ -10,4 +10,9 @@ export interface GalleryItem {
   dateAdded?: string; // ISO date string for sorting by date
   size?: { width: number; height: number };
   tags?: string[];
+  videoMetadata?: {
+    originalSize: number;
+    originalName: string;
+    originalType: string;
+  };
 }

@@ -227,10 +227,20 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
       
       // Upload video if required
       if (videoFile && uploadType === 'video') {
+        // Save original file details before upload for reference
+        const originalVideoSize = videoFile.size;
+        const originalVideoName = videoFile.name;
+        const originalVideoType = videoFile.type;
+        
         videoResult = await uploadVideo(videoFile, folder, `${fileName}_video.${videoFile.name.split('.').pop()}`);
         if (!videoResult.success) {
           throw new Error('Failed to upload video');
         }
+        
+        // Add original video metadata to the video result
+        videoResult.originalSize = originalVideoSize;
+        videoResult.originalName = originalVideoName;
+        videoResult.originalType = originalVideoType;
       }
       
       // Create metadata for the upload
@@ -248,6 +258,12 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
         fileId: imageResult?.fileId || null,
         zipFileId: zipResult?.fileId || null,
         videoFileId: videoResult?.fileId || null,
+        // Add the original video details if available
+        videoMetadata: videoResult ? {
+          originalSize: videoResult.originalSize,
+          originalName: videoResult.originalName,
+          originalType: videoResult.originalType
+        } : null,
         createdAt: new Date().toISOString(),
         folder
       };

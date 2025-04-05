@@ -117,11 +117,15 @@ export const uploadZip = async (file: File, folder: string, fileName: string) =>
 // Upload function for videos
 export const uploadVideo = async (file: File, folder: string, fileName: string) => {
   try {
-    // Use direct upload with private key authentication
+    // Use direct upload with simpler parameters to avoid API errors
     const data = await uploadToImageKit(file, {
       fileName,
       folder,
-      useUniqueFileName: true
+      useUniqueFileName: true,
+      // Use tags to help identify high quality videos
+      tags: ["original-quality"],
+      // Basic metadata
+      responseFields: "url,thumbnailUrl,fileId"
     });
     
     return {

@@ -254,19 +254,25 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mx-auto">
         {items.length > 0 ? (
           items.map((item) => (
             <div
               key={item.id}
-              className="image-section group relative overflow-hidden p-5 border rounded-lg mb-6 flex justify-center items-center"
-              style={{ aspectRatio: '3/4' }}
+              className="image-section group relative overflow-hidden p-3 rounded-lg flex justify-center items-center border border-primary/30 shadow-sm hover:shadow-md hover:border-primary/50 transition-all duration-300"
+              style={{ 
+                width: '100%', 
+                background: 'linear-gradient(to bottom, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+                height: '220px',
+                display: 'flex',
+                alignItems: 'center'
+              }}
             >
               <img
                 src={item.imageUrl}
                 alt={item.title}
-                className="max-w-full max-h-full object-cover transition-transform duration-500"
-                style={{ maxBlockSize: 'fit-content'}}
+                className="max-w-full object-contain transition-transform duration-500"
+                style={{ maxHeight: '180px', maxWidth: '90%', margin: 'auto' }}
                 loading="lazy"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
@@ -285,7 +291,6 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
                 </div>
               </div>
             </div>
-
           ))
         ) : (
           <div className="col-span-full text-center py-10">

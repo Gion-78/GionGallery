@@ -131,7 +131,9 @@ const getContentData = (category: string): GalleryItem[] => {
           downloadUrl: item.zipUrl || item.imageUrl || item.videoUrl, // Use zip URL if available, otherwise image URL
           videoUrl: item.videoUrl,
           dateAdded: item.dateAdded || item.date || item.createdAt || new Date().toISOString(), // Use any available date field
-          tags: []
+          tags: [],
+          // Include video metadata if available
+          videoMetadata: item.videoMetadata || null
         }));
 
       console.log(`Filtered items for ${category}:`, contentItems);
@@ -209,7 +211,19 @@ const GalleryGrid = ({
     if (onTotalItemsChange) {
       onTotalItemsChange(filteredItems.length);
     }
-  }, [category, searchQuery, sortOption, onTotalItemsChange]);
+
+    // When items change, ensure current page is valid
+    const totalPages = Math.ceil(filteredItems.length / itemsPerPage);
+    if (currentPage > totalPages && totalPages > 0) {
+      // If current page is beyond total pages, set it to the last valid page
+      const validPage = Math.max(1, totalPages);
+      // This is a workaround to communicate the page change back to parent
+      if (onTotalItemsChange) {
+        // We're reusing the callback to trigger a redraw
+        setTimeout(() => onTotalItemsChange(filteredItems.length), 0);
+      }
+    }
+  }, [category, searchQuery, sortOption, onTotalItemsChange, currentPage, itemsPerPage]);
 
   // Listen for storage changes
   useEffect(() => {
@@ -279,14 +293,108 @@ const GalleryGrid = ({
     // Calculate paginated items
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    setPaginatedItems(items.slice(startIndex, endIndex));
-  }, [items, currentPage, itemsPerPage]);
+    const paginatedResult = items.slice(startIndex, endIndex);
+    setPaginatedItems(paginatedResult);
+    
+    // If no items are shown but we have items and we're not on the first page
+    // this likely means we need to adjust the current page
+    if (paginatedResult.length === 0 && items.length > 0 && currentPage > 1) {
+      const totalPages = Math.ceil(items.length / itemsPerPage);
+      const validPage = Math.min(currentPage, totalPages);
+      
+      if (validPage !== currentPage && onTotalItemsChange) {
+        // We're reusing the callback to trigger a redraw
+        setTimeout(() => onTotalItemsChange(items.length), 0);
+      }
+    }
+  }, [items, currentPage, itemsPerPage, onTotalItemsChange]);
 
   const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement>, item: GalleryItem) => {
     e.preventDefault();
 
     try {
-      // Fetch the content as a blob
+      // Determine if this is a video item
+      const isVideoItem = !!item.videoUrl;
+      
+      // For video items, use a more comprehensive approach
+      if (isVideoItem) {
+        // Try multiple methods to get the highest quality version
+        try {
+          // Parse the video URL to extract important parts
+          const url = new URL(item.videoUrl);
+          const urlPath = url.pathname;
+          
+          // Calculate size differences if we have original metadata
+          let qualityInfo = '';
+          if (item.videoMetadata) {
+            // Create a fetch request to check current file size
+            const headResponse = await fetch(item.videoUrl, { 
+              method: 'HEAD',
+              cache: 'no-store'
+            });
+            
+            // Get content length if available
+            const contentLength = headResponse.headers.get('content-length');
+            const currentSize = contentLength ? parseInt(contentLength, 10) : 0;
+            
+            // Calculate percentage of quality loss
+            if (currentSize > 0 && item.videoMetadata.originalSize > 0) {
+              const percentOfOriginal = Math.round((currentSize / item.videoMetadata.originalSize) * 100);
+              const sizeDiff = item.videoMetadata.originalSize - currentSize;
+              const mbDiff = (sizeDiff / (1024 * 1024)).toFixed(2);
+              
+              qualityInfo = `
+                The downloaded file will be approximately ${percentOfOriginal}% of the original quality.
+                Original size: ${(item.videoMetadata.originalSize / (1024 * 1024)).toFixed(2)}MB
+                Download size: ${(currentSize / (1024 * 1024)).toFixed(2)}MB
+                Quality reduction: ${mbDiff}MB (${100 - percentOfOriginal}%)
+              `;
+              
+              // Log quality info for debugging but don't show confirmation dialog
+              console.log('Video quality info:', qualityInfo);
+            }
+          }
+          
+          // Proceed with download using the best available method
+          console.log('Proceeding with video download...');
+          console.log('Quality information:', qualityInfo);
+          
+          // Method 2: Using TR parameter to get original if possible
+          const origUrl = `${url.origin}${urlPath}?tr=orig-true&_t=${Date.now()}`;
+          
+          const response = await fetch(origUrl, { cache: 'no-store' });
+          if (!response.ok) {
+            throw new Error(`Failed to fetch video: ${response.status}`);
+          }
+          
+          const blob = await response.blob();
+          console.log('Downloaded blob size:', blob.size);
+          
+          // Prepare filename with .mp4 extension
+          let filename = item.title;
+          if (!filename.toLowerCase().endsWith('.mp4')) {
+            filename = filename.replace(/\.(webm|mp4|mov|avi)$/i, '');
+            filename += '.mp4';
+          }
+          
+          // Create a download link
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(a.href);
+          
+        } catch (error) {
+          console.error('Error downloading original video:', error);
+          alert('Failed to download the video. The service might be limiting video quality. Please try again or contact support.');
+        }
+        
+        return;
+      }
+      
+      // Handle non-video items (original logic)
       const response = await fetch(item.downloadUrl || item.imageUrl);
       const blob = await response.blob();
 
@@ -326,9 +434,23 @@ const GalleryGrid = ({
     const videoElement = videoRefs.current[id];
     if (videoElement) {
       if (videoElement.paused) {
+        // If this video is paused and we want to play it:
+        // First pause any currently playing videos
+        if (category === 'Login Screens') {
+          // Find all currently playing videos and pause them
+          Object.entries(videoRefs.current).forEach(([videoId, element]) => {
+            if (videoId !== id && element && !element.paused) {
+              element.pause();
+              setPlayingVideos((prev) => ({ ...prev, [videoId]: false }));
+            }
+          });
+        }
+        
+        // Now play the selected video
         videoElement.play();
         setPlayingVideos((prev) => ({ ...prev, [id]: true }));
       } else {
+        // If this video is already playing, pause it
         videoElement.pause();
         setPlayingVideos((prev) => ({ ...prev, [id]: false }));
       }
@@ -337,16 +459,41 @@ const GalleryGrid = ({
 
   return (
     <>
-      <div className={`w-full ${viewMode === 'grid'
-        ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
-        : 'columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6'
+      <div className={`w-full ${
+        viewMode === 'grid'
+          ? category === 'Characters' 
+            ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 justify-items-center'
+            : category === 'Portraits'
+              ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2'
+            : 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6'
+          : 'columns-1 sm:columns-2 lg:columns-3 xl:columns-4 gap-6'
       }`}>
         {paginatedItems.length > 0 ? (
           paginatedItems.map((item) => (
             <div
               key={item.id}
-              className={`group relative overflow-hidden rounded-lg mb-6 ${viewMode === 'grid' ? '' : 'break-inside-avoid'}`}
-              style={viewMode === 'grid' ? { aspectRatio: '3/4' } : {}}
+              className={`group relative overflow-hidden rounded-lg ${
+                category === 'Portraits' ? 'mb-2' : 'mb-6'
+              } ${viewMode === 'grid' ? '' : 'break-inside-avoid'} ${
+                category === 'Character Banners' 
+                  ? 'border border-primary/50 shadow-sm' 
+                  : category === 'Event Banners'
+                    ? 'border border-primary/50 shadow-sm'
+                    : 'border border-primary/30 shadow-sm hover:shadow-md hover:border-primary/50'
+              } transition-all duration-300`}
+              style={viewMode === 'grid' 
+                ? (category === 'Characters' 
+                  ? { maxWidth: '320px', margin: '0 auto' } 
+                  : category === 'Character Banners' 
+                    ? { maxWidth: '640px', margin: '0 auto', aspectRatio: '2/1' }
+                    : category === 'Event Banners'
+                      ? { maxWidth: '480px', margin: '0 auto', aspectRatio: '2/1' }
+                      : category === 'Login Screens'
+                        ? { maxWidth: '780px', margin: '0 auto', aspectRatio: '13/8' }
+                        : category === 'Portraits'
+                          ? { maxWidth: '128px', margin: '0 auto' }
+                        : { aspectRatio: '3/4' })
+                : {}}
             >
               {item.videoUrl ? (
                 <div className="relative w-full h-full">
@@ -355,15 +502,16 @@ const GalleryGrid = ({
                     ref={(el) => (videoRefs.current[String(item.id)] = el)}
                     src={item.videoUrl}
                     poster={item.imageUrl}
-                    className="w-full h-full object-cover z-10"
+                    className={`w-full h-full ${category === 'Login Screens' ? 'object-contain' : 'object-cover'} z-10`}
                     controls={false}  // إخفاء عناصر التحكم الأصلية
                     muted
                     playsInline
+                    loop
                   />
                   {/* زر التشغيل/الإيقاف المخصص الوحيد */}
-                  <div className="absolute inset-0 flex items-center justify-center z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                  <div className="absolute inset-0 flex items-center justify-center z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
                     <button 
-                      className="p-4 bg-secondary rounded-full"
+                      className="p-4 bg-secondary rounded-full pointer-events-auto"
                       onClick={() => handlePlayPauseClick(String(item.id))}
                       aria-label="Play/Pause"
                     >
@@ -374,38 +522,63 @@ const GalleryGrid = ({
                       )}
                     </button>
                   </div>
+                  
+                  {/* Content at the bottom of the video, shown on hover - matches the image style */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-20 pointer-events-auto">
+                    <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{item.description}</p>
+                    <div className="flex gap-2">
+                      <a
+                        href={item.videoUrl}
+                        onClick={(e) => handleDownload(e, item)}
+                        download={item.title}
+                        className="p-2 bg-secondary text-secondary-foreground rounded-full"
+                        aria-label="Download video"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
                 </div>
               ) : (
-                <img
-                  src={item.imageUrl}
-                  alt={item.title}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
+                <>
+                  <div className={category === 'Characters' ? 'h-[320px] flex items-center justify-center' : 
+                               category === 'Character Banners' || category === 'Event Banners' ? 
+                               'h-auto flex items-center justify-center' : 
+                               category === 'Portraits' ?
+                               'h-[128px] flex items-center justify-center' : 'h-full'}>
+                    <img
+                      src={item.imageUrl}
+                      alt={item.title}
+                      className={`transition-transform duration-500 ${
+                        category === 'Characters' 
+                          ? 'max-h-full max-w-full object-contain' 
+                          : category === 'Character Banners' || category === 'Event Banners'
+                            ? 'w-full h-auto object-contain' 
+                            : category === 'Portraits'
+                              ? 'max-h-[210px] max-w-[210px] object-contain' 
+                            : 'w-full h-full object-cover'
+                      }`}
+                      loading="lazy"
+                    />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                    <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-4">{item.description}</p>
+                    <div className="flex gap-2">
+                      <a
+                        href={item.downloadUrl || item.imageUrl}
+                        onClick={(e) => handleDownload(e, item)}
+                        download={item.title}
+                        className="p-2 bg-secondary text-secondary-foreground rounded-full"
+                        aria-label="Download image"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                    </div>
+                  </div>
+                </>
               )}
-  
-              {/* Content at the top of the video, shown on hover */}
-              <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-transparent to-black/50 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                <div className="flex justify-between items-start w-full">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">{item.title}</h3>
-                    <p className="text-sm text-white mb-4">{item.description}</p>
-                  </div>
-  
-                  {/* Download Button */}
-                  <div className="flex gap-2">
-                    <a
-                      href={item.downloadUrl || item.imageUrl}
-                      onClick={(e) => handleDownload(e, item)}
-                      download={item.title}
-                      className="p-2 bg-secondary text-secondary-foreground rounded-full"
-                      aria-label="Download image"
-                    >
-                      <Download className="w-4 h-4" />
-                    </a>
-                  </div>
-                </div>
-              </div>
   
             </div>
           ))

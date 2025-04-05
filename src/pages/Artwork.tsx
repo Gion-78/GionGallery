@@ -28,6 +28,18 @@ interface SortOption {
   direction: SortDirection;
 }
 
+// Configurable scroll settings - adjust these values to control the exact scroll position
+const SCROLL_CONFIG = {
+  // The ID of the element to scroll to
+  targetElement: 'artwork-category-filters',
+  // Vertical offset in pixels (positive = scroll down, negative = scroll up)
+  verticalOffset: -150,
+  // Scroll behavior (smooth or auto)
+  behavior: 'smooth' as ScrollBehavior,
+  // Block alignment (start, center, end, nearest)
+  block: 'start' as ScrollLogicalPosition
+};
+
 const Artwork = () => {
   const [activeCategory, setActiveCategory] = useState<string>("Characters");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -52,31 +64,43 @@ const Artwork = () => {
   });
   
   const [totalItems, setTotalItems] = useState<number>(0);
-  const itemsPerPage = 8; // Number of items to show per page
+  const getItemsPerPage = () => {
+    // Use a smaller number of items per page for banner categories
+    if (activeCategory === 'Character Banners' || activeCategory === 'Event Banners') {
+      return 6; // Fewer items per page for banners
+    }
+    return 8; // Default for other categories
+  };
+  
+  const itemsPerPage = getItemsPerPage();
   
   useEffect(() => {
-    // Apply animations to elements as they come into view
+    // Reset the page when category changes
+    setCurrentPage(1);
+    
+    // Apply fade-in animation to gallery items
     const observer = observeElements('.animate-on-scroll', fadeInUp);
     
     return () => {
-      if (observer) {
-        observer.disconnect();
-      }
+      observer.disconnect();
     };
-  }, []);
+  }, [activeCategory]);
+
+  useEffect(() => {
+    // Recalculate items per page when category changes
+    const newItemsPerPage = getItemsPerPage();
+    if (itemsPerPage !== newItemsPerPage) {
+      // This will trigger a re-render
+      setCurrentPage(1);
+    }
+  }, [activeCategory]);
 
   // Reset to page 1 when category changes
   useEffect(() => {
     setCurrentPage(1);
+    // Reset search query when category changes
+    setSearchQuery("");
   }, [activeCategory]);
-
-  // Auto-advance to next page if current page is full and new items are added
-  useEffect(() => {
-    const totalPages = Math.ceil(totalItems / itemsPerPage);
-    if (totalPages > currentPage && totalItems % itemsPerPage === 1) {
-      setCurrentPage(totalPages);
-    }
-  }, [totalItems, itemsPerPage, currentPage]);
 
   // Function to update sort options for the active category
   const updateSortOptions = (field: SortField, direction: SortDirection) => {
@@ -86,18 +110,38 @@ const Artwork = () => {
     }));
   };
 
-  // Function to navigate to previous page
+  // Scroll to the configured position
+  const scrollToConfiguredPosition = () => {
+    setTimeout(() => {
+      const targetElement = document.getElementById(SCROLL_CONFIG.targetElement);
+      if (targetElement) {
+        targetElement.scrollIntoView({
+          behavior: SCROLL_CONFIG.behavior,
+          block: SCROLL_CONFIG.block
+        });
+        
+        // Apply additional offset if needed
+        if (SCROLL_CONFIG.verticalOffset !== 0) {
+          window.scrollBy(0, SCROLL_CONFIG.verticalOffset);
+        }
+      }
+    }, 0);
+  };
+
+  // Improved function to navigate to previous page
   const goToPreviousPage = () => {
     if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
+      setCurrentPage(prev => prev - 1);
+      scrollToConfiguredPosition();
     }
   };
 
-  // Function to navigate to next page
+  // Improved function to navigate to next page
   const goToNextPage = () => {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
+      setCurrentPage(prev => prev + 1);
+      scrollToConfiguredPosition();
     }
   };
 
@@ -489,13 +533,16 @@ const Artwork = () => {
               <h2 className="text-2xl font-bold">ARTWORK</h2>
             </div>
             
-            <GalleryFilter 
-              activeCategory={activeCategory} 
-              setActiveCategory={(category) => {
-                setActiveCategory(category);
-                setSearchQuery("");
-              }} 
-            />
+            {/* Added ID to the category filters section for targeted scrolling */}
+            <div id="artwork-category-filters">
+              <GalleryFilter 
+                activeCategory={activeCategory} 
+                setActiveCategory={(category) => {
+                  setActiveCategory(category);
+                  setSearchQuery("");
+                }} 
+              />
+            </div>
           </div>
           
           {renderCategoryContent()}

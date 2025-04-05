@@ -1,4 +1,4 @@
-import { FC, useState } from 'react';
+import { FC, useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface GalleryFilterProps {
@@ -11,6 +11,11 @@ const GalleryFilter: FC<GalleryFilterProps> = ({ activeCategory, setActiveCatego
   const [showBannersDropdown, setShowBannersDropdown] = useState(false);
   const [showTitlesDropdown, setShowTitlesDropdown] = useState(false);
   const [showFramesDropdown, setShowFramesDropdown] = useState(false);
+  
+  const miscDropdownRef = useRef<HTMLDivElement>(null);
+  const bannersDropdownRef = useRef<HTMLDivElement>(null);
+  const titlesDropdownRef = useRef<HTMLDivElement>(null);
+  const framesDropdownRef = useRef<HTMLDivElement>(null);
 
   const mainCategories = ["Characters", "Skills", "Portraits"];
   const bannerSubcategories = ["Character Banners", "Event Banners"];
@@ -18,58 +23,87 @@ const GalleryFilter: FC<GalleryFilterProps> = ({ activeCategory, setActiveCatego
   const framesSubcategories = ["Character Frames", "Event Frames"];
   const miscCategories = ["Emblems", "Resources", "Login Screens", "Cutscenes"];
 
-  const toggleMiscDropdown = () => {
+  // Close all dropdowns
+  const closeAllDropdowns = () => {
+    setShowMiscDropdown(false);
+    setShowBannersDropdown(false);
+    setShowTitlesDropdown(false);
+    setShowFramesDropdown(false);
+  };
+
+  const toggleMiscDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setShowMiscDropdown(!showMiscDropdown);
     // Close other dropdowns
-    if (!showMiscDropdown) {
-      setShowBannersDropdown(false);
-      setShowTitlesDropdown(false);
-      setShowFramesDropdown(false);
-    }
+    setShowBannersDropdown(false);
+    setShowTitlesDropdown(false);
+    setShowFramesDropdown(false);
   };
 
-  const toggleBannersDropdown = () => {
+  const toggleBannersDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setShowBannersDropdown(!showBannersDropdown);
     // Close other dropdowns
-    if (!showBannersDropdown) {
-      setShowMiscDropdown(false);
-      setShowTitlesDropdown(false);
-      setShowFramesDropdown(false);
-    }
+    setShowMiscDropdown(false);
+    setShowTitlesDropdown(false);
+    setShowFramesDropdown(false);
   };
 
-  const toggleTitlesDropdown = () => {
+  const toggleTitlesDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setShowTitlesDropdown(!showTitlesDropdown);
     // Close other dropdowns
-    if (!showTitlesDropdown) {
-      setShowMiscDropdown(false);
-      setShowBannersDropdown(false);
-      setShowFramesDropdown(false);
-    }
+    setShowMiscDropdown(false);
+    setShowBannersDropdown(false);
+    setShowFramesDropdown(false);
   };
 
-  const toggleFramesDropdown = () => {
+  const toggleFramesDropdown = (e: React.MouseEvent) => {
+    e.stopPropagation();
     setShowFramesDropdown(!showFramesDropdown);
     // Close other dropdowns
-    if (!showFramesDropdown) {
-      setShowMiscDropdown(false);
-      setShowBannersDropdown(false);
-      setShowTitlesDropdown(false);
-    }
+    setShowMiscDropdown(false);
+    setShowBannersDropdown(false);
+    setShowTitlesDropdown(false);
   };
 
   const handleCategoryClick = (category: string) => {
     setActiveCategory(category);
-    if (miscCategories.includes(category) || 
-        bannerSubcategories.includes(category) || 
-        titlesSubcategories.includes(category) || 
-        framesSubcategories.includes(category)) {
-      setShowMiscDropdown(false);
-      setShowBannersDropdown(false);
-      setShowTitlesDropdown(false);
-      setShowFramesDropdown(false);
-    }
+    closeAllDropdowns();
   };
+
+  // Add click outside event listener
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if click is outside all dropdowns
+      if (
+        (showMiscDropdown && 
+         miscDropdownRef.current && 
+         !miscDropdownRef.current.contains(event.target as Node)) ||
+        (showBannersDropdown && 
+         bannersDropdownRef.current && 
+         !bannersDropdownRef.current.contains(event.target as Node)) ||
+        (showTitlesDropdown && 
+         titlesDropdownRef.current && 
+         !titlesDropdownRef.current.contains(event.target as Node)) ||
+        (showFramesDropdown && 
+         framesDropdownRef.current && 
+         !framesDropdownRef.current.contains(event.target as Node))
+      ) {
+        closeAllDropdowns();
+      }
+    };
+
+    // Add event listener when any dropdown is open
+    if (showMiscDropdown || showBannersDropdown || showTitlesDropdown || showFramesDropdown) {
+      document.addEventListener('click', handleClickOutside);
+    }
+
+    // Cleanup event listener
+    return () => {
+      document.removeEventListener('click', handleClickOutside);
+    };
+  }, [showMiscDropdown, showBannersDropdown, showTitlesDropdown, showFramesDropdown]);
 
   const isBannerCategoryActive = bannerSubcategories.includes(activeCategory);
   const isTitlesCategoryActive = titlesSubcategories.includes(activeCategory);
@@ -92,7 +126,7 @@ const GalleryFilter: FC<GalleryFilterProps> = ({ activeCategory, setActiveCatego
       </button>
       
       {/* Banners Dropdown */}
-      <div className="relative">
+      <div className="relative" ref={bannersDropdownRef}>
         <button
           onClick={toggleBannersDropdown}
           className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-1 ${
@@ -154,7 +188,7 @@ const GalleryFilter: FC<GalleryFilterProps> = ({ activeCategory, setActiveCatego
       </button>
       
       {/* Titles Dropdown */}
-      <div className="relative">
+      <div className="relative" ref={titlesDropdownRef}>
         <button
           onClick={toggleTitlesDropdown}
           className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-1 ${
@@ -190,7 +224,7 @@ const GalleryFilter: FC<GalleryFilterProps> = ({ activeCategory, setActiveCatego
       </div>
       
       {/* Frames Dropdown */}
-      <div className="relative">
+      <div className="relative" ref={framesDropdownRef}>
         <button
           onClick={toggleFramesDropdown}
           className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-1 ${
@@ -226,7 +260,7 @@ const GalleryFilter: FC<GalleryFilterProps> = ({ activeCategory, setActiveCatego
       </div>
       
       {/* Miscellaneous Dropdown */}
-      <div className="relative">
+      <div className="relative" ref={miscDropdownRef}>
         <button
           onClick={toggleMiscDropdown}
           className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 flex items-center gap-1 ${
