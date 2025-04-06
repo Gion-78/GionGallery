@@ -3,6 +3,7 @@ import { Trash2, X, Image, FileArchive, Video, ExternalLink, Edit, Check, Upload
 import { deleteFile, uploadImage, uploadZip, uploadVideo } from '../../lib/imagekit';
 import { deleteContent, triggerStorageUpdate } from '../../lib/utils';
 import { getAllContent, updateContent, deleteContent as deleteContentFromSupabase, ContentItem } from '../../lib/supabase';
+import { useAuth } from '../../context/AuthContext';
 
 // Categories and subcategories structure (import structure from UploadContent)
 const categoryStructure = {
@@ -42,6 +43,7 @@ interface ContentManagementProps {
 }
 
 const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }) => {
+  const { currentUser } = useAuth();
   const [contentItems, setContentItems] = useState<ContentItem[]>([]);
   const [filter, setFilter] = useState<string>('all');
   const [categoryFilter, setCategoryFilter] = useState<string>('');
@@ -289,7 +291,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
           zipFileId: newZipFileId,
           videoUrl: newVideoUrl,
           videoFileId: newVideoFileId
-        });
+        }, currentUser?.email);
         
         // Keep localStorage updated for backward compatibility
         const siteContentJSON = localStorage.getItem('siteContent');
@@ -399,7 +401,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
         }
         
         // Delete from Supabase
-        await deleteContentFromSupabase(id);
+        await deleteContentFromSupabase(id, currentUser?.email);
         
         // Also delete from localStorage for backward compatibility
         deleteContent(id);
@@ -454,7 +456,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
           }
           
           // Delete from Supabase
-          await deleteContentFromSupabase(id);
+          await deleteContentFromSupabase(id, currentUser?.email);
           
           // Also delete from localStorage for backward compatibility
           deleteContent(id);

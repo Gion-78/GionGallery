@@ -7,6 +7,13 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Function to set the admin email for RLS policies
+export const setAdminEmail = async (email: string | null | undefined): Promise<void> => {
+  if (!email) return;
+  
+  await supabase.rpc('set_admin_email', { admin_email: email });
+};
+
 // Content metadata interfaces
 export interface ContentItem {
   id: string;
@@ -32,9 +39,12 @@ export interface ContentItem {
 }
 
 // Content operations
-export const saveContent = async (content: ContentItem): Promise<{success: boolean, error?: any}> => {
+export const saveContent = async (content: ContentItem, adminEmail: string | null | undefined): Promise<{success: boolean, error?: any}> => {
   try {
     console.log('Attempting to save content to Supabase:', content);
+    
+    // Set the admin email for RLS
+    await setAdminEmail(adminEmail);
     
     // Convert camelCase to lowercase for Postgres compatibility
     const formattedContent = {
@@ -111,8 +121,11 @@ export const getAllContent = async (): Promise<{success: boolean, data?: Content
   }
 };
 
-export const updateContent = async (id: string, updates: Partial<ContentItem>): Promise<{success: boolean, error?: any}> => {
+export const updateContent = async (id: string, updates: Partial<ContentItem>, adminEmail: string | null | undefined): Promise<{success: boolean, error?: any}> => {
   try {
+    // Set the admin email for RLS
+    await setAdminEmail(adminEmail);
+    
     // Convert camelCase fields to lowercase for PostgreSQL
     const formattedUpdates: Record<string, any> = {};
     
@@ -147,8 +160,11 @@ export const updateContent = async (id: string, updates: Partial<ContentItem>): 
   }
 };
 
-export const deleteContent = async (id: string): Promise<{success: boolean, error?: any}> => {
+export const deleteContent = async (id: string, adminEmail: string | null | undefined): Promise<{success: boolean, error?: any}> => {
   try {
+    // Set the admin email for RLS
+    await setAdminEmail(adminEmail);
+    
     const { error } = await supabase
       .from('content')
       .delete()

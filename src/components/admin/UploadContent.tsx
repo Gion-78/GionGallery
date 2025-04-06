@@ -370,7 +370,9 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
         
         // Save to Supabase
         try {
-          const result = await saveContent(metadata);
+          console.log('Saving metadata to Supabase:', metadata);
+          // Pass the current user's email for authentication
+          const result = await saveContent(metadata, currentUser?.email);
           if (!result.success) {
             console.error('Failed to save to Supabase:', result.error);
           } else {
