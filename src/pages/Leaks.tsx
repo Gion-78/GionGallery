@@ -495,6 +495,7 @@ const Leaks = () => {
 
   // Function to update sort options for the active category
   const updateSortOptions = (field: SortField, direction: SortDirection) => {
+    console.log('Updating sort options:', { field, direction, category: activeCategory });
     setSortOptions(prev => ({
       ...prev,
       [activeCategory]: { field, direction }

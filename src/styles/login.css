@@ -1,0 +1,300 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700&display=swap');
+
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    background-color: hsl(0, 0%, 10%);
+    background: linear-gradient(to right, hsl(0, 0%, 10%), hsl(0, 0%, 15%));
+}
+
+.login-page .container {
+    background-color: hsl(0, 0%, 18%);
+    border-radius: 30px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.5);
+    position: relative;
+    overflow: hidden;
+    width: 768px;
+    max-width: 100%;
+    min-height: 480px;
+}
+
+.login-page .container p {
+    font-size: 14px;
+    line-height: 20px;
+    letter-spacing: 0.3px;
+    margin: 20px 0;
+    color: hsl(0, 0%, 90%);
+}
+
+.login-page .container span {
+    font-size: 12px;
+    color: hsl(0, 0%, 70%);
+}
+
+.login-page .container a {
+    color: white;
+    font-size: 13px;
+    text-decoration: none;
+    margin: 15px 0 10px;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.login-page .container a:after {
+    content: '';
+    position: absolute;
+    width: 100%;
+    height: 1px;
+    bottom: -2px;
+    left: 0;
+    background-color: hsl(0, 85%, 60%);
+    transform: scaleX(0);
+    transform-origin: center;
+    transition: transform 0.3s ease;
+}
+
+.login-page .container a:hover:after {
+    transform: scaleX(1);
+}
+
+.login-page .container button {
+    background-color: transparent;
+    color: #fff;
+    font-size: 12px;
+    padding: 10px 45px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: none;
+    margin-top: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.login-page .container button:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.login-page .container button.hidden {
+    background-color: transparent;
+    border-color: #fff;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    color: #fff;
+    text-transform: none;
+}
+
+.login-page .toggle-panel button.hidden {
+    background-color: transparent;
+    border: 1px solid #fff;
+    color: #fff;
+    font-weight: 600;
+    display: inline-block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    text-transform: none;
+}
+
+.login-page .toggle-panel button.hidden:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.login-page .container form {
+    background-color: hsl(0, 0%, 18%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 0 40px;
+    height: 100%;
+}
+
+.login-page .container input {
+    background-color: hsl(0, 0%, 25%);
+    color: hsl(0, 0%, 90%);
+    border: none;
+    margin: 8px 0;
+    padding: 10px 15px;
+    font-size: 13px;
+    border-radius: 8px;
+    width: 100%;
+    outline: none;
+}
+
+.login-page .container input::placeholder {
+    color: hsl(0, 0%, 60%);
+}
+
+.login-page .container h1 {
+    color: hsl(0, 0%, 90%);
+    margin-bottom: 10px;
+}
+
+.login-page .form-container {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    transition: all 0.6s ease-in-out;
+}
+
+.login-page .sign-in {
+    left: 0;
+    width: 50%;
+    z-index: 2;
+}
+
+.login-page .container.active .sign-in {
+    transform: translateX(100%);
+}
+
+.login-page .sign-up {
+    left: 0;
+    width: 50%;
+    opacity: 0;
+    z-index: 1;
+}
+
+.login-page .container.active .sign-up {
+    transform: translateX(100%);
+    opacity: 1;
+    z-index: 5;
+    animation: move 0.6s;
+}
+
+@keyframes move {
+    0%, 49.99% {
+        opacity: 0;
+        z-index: 1;
+    }
+    50%, 100% {
+        opacity: 1;
+        z-index: 5;
+    }
+}
+
+.login-page .social-icons {
+    margin: 20px 0;
+    width: 100%;
+}
+
+.login-page .google-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    padding: 12px 16px;
+    border-radius: 8px;
+    background-color: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-decoration: none;
+    text-transform: none;
+}
+
+.login-page .google-btn:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.login-page .google-btn svg {
+    margin-right: 15px;
+}
+
+.login-page .toggle-container {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 50%;
+    height: 100%;
+    overflow: hidden;
+    transition: all 0.6s ease-in-out;
+    border-radius: 150px 0 0 100px;
+    z-index: 1000;
+}
+
+.login-page .container.active .toggle-container {
+    transform: translateX(-100%);
+    border-radius: 0 150px 100px 0;
+}
+
+.login-page .toggle {
+    background-color: hsl(0, 85%, 60%);
+    height: 100%;
+    background: linear-gradient(to right, hsl(0, 85%, 50%), hsl(0, 85%, 60%));
+    color: #fff;
+    position: relative;
+    left: -100%;
+    height: 100%;
+    width: 200%;
+    transform: translateX(0);
+    transition: all 0.6s ease-in-out;
+}
+
+.login-page .container.active .toggle {
+    transform: translateX(50%);
+}
+
+.login-page .toggle-panel {
+    position: absolute;
+    width: 50%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 0 30px;
+    text-align: center;
+    top: 0;
+    transform: translateX(0);
+    transition: all 0.6s ease-in-out;
+}
+
+.login-page .toggle-left {
+    transform: translateX(-200%);
+}
+
+.login-page .container.active .toggle-left {
+    transform: translateX(0);
+}
+
+.login-page .toggle-right {
+    right: 0;
+    transform: translateX(0);
+}
+
+.login-page .container.active .toggle-right {
+    transform: translateX(200%);
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .login-page .container {
+        min-height: 400px;
+        width: 90%;
+    }
+    
+    .login-page .toggle-container {
+        display: none;
+    }
+    
+    .login-page .sign-in, 
+    .login-page .sign-up {
+        width: 100%;
+    }
+    
+    .login-page .container.active .sign-in {
+        transform: translateX(-100%);
+    }
+} 

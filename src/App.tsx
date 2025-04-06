@@ -9,6 +9,7 @@ import Artwork from "./pages/Artwork";
 import About from "./pages/About";
 import Leaks from "./pages/Leaks";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
             <Route path="/artwork" element={<Artwork />} />
             <Route path="/about" element={<About />} />
             <Route path="/leaks" element={<Leaks />} />
+            <Route path="/login" element={<Login />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -140,6 +140,9 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
         )
         : leakItems;
 
+      // Log sortOption for debugging
+      console.log('Applying sort option:', sortOption);
+
       // Sort items based on sortOption
       const sortedItems = [...filteredItems].sort((a, b) => {
         if (sortOption.field === 'date') {
@@ -175,7 +178,7 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
         }
       });
 
-      console.log(`LeaksGallery found ${sortedItems.length} items for ${category}`);
+      console.log(`LeaksGallery found ${sortedItems.length} items for ${category}, sorted by ${sortOption.field} in ${sortOption.direction} order`);
 
       // Store all sorted items
       setAllItems(sortedItems);
@@ -194,7 +197,7 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
     };
 
     loadLeakItems();
-  }, [category, searchQuery, sortOption, currentPage, itemsPerPage, onTotalItemsChange]);
+  }, [category, searchQuery, sortOption.field, sortOption.direction, currentPage, itemsPerPage, onTotalItemsChange]);
 
   // Handle storage events
   useEffect(() => {
@@ -325,6 +328,9 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
               item.description.toLowerCase().includes(searchQuery.toLowerCase())
             )
             : leakItems;
+
+          // Log sortOption for debugging
+          console.log('Storage event: Applying sort option:', sortOption);
 
           // Sort items based on sortOption
           const sortedItems = [...filteredItems].sort((a, b) => {

@@ -109,6 +109,7 @@ const Artwork = () => {
 
   // Function to update sort options for the active category
   const updateSortOptions = (field: SortField, direction: SortDirection) => {
+    console.log('Updating sort options:', { field, direction, category: activeCategory });
     setSortOptions(prev => ({
       ...prev,
       [activeCategory]: { field, direction }
@@ -726,6 +727,11 @@ const Artwork = () => {
       case "Login Screens":
         return (
           <>
+            <div className="mb-6 flex justify-end">
+              <div className="flex items-center">
+                <FilterDropdown />
+              </div>
+            </div>
             <GalleryGrid 
               viewMode="grid" 
               category={activeCategory}
@@ -771,6 +777,11 @@ const Artwork = () => {
       case "Event Banners":
         return (
           <>
+            <div className="mb-6 flex justify-end">
+              <div className="flex items-center">
+                <FilterDropdown />
+              </div>
+            </div>
             <GalleryGrid 
               viewMode="grid" 
               category={activeCategory}
@@ -816,6 +827,11 @@ const Artwork = () => {
       case "Event Titles":
         return (
           <>
+            <div className="mb-6 flex justify-end">
+              <div className="flex items-center">
+                <FilterDropdown />
+              </div>
+            </div>
             <GalleryGrid 
               viewMode="grid" 
               category={activeCategory}
@@ -861,6 +877,11 @@ const Artwork = () => {
       case "Event Frames":
         return (
           <>
+            <div className="mb-6 flex justify-end">
+              <div className="flex items-center">
+                <FilterDropdown />
+              </div>
+            </div>
             <GalleryGrid 
               viewMode="grid" 
               category={activeCategory}

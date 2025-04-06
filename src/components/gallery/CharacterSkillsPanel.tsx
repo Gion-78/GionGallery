@@ -288,7 +288,7 @@ const CharacterSkillsPanel = ({
           items.map((item) => (
             <div 
               key={item.id}
-              className="relative overflow-hidden rounded-lg mb-6 border border-primary/30 shadow-sm"
+              className="relative overflow-hidden rounded-lg mb-6 border border-primary/30 shadow-sm hover:shadow-md hover:border-primary/50 group transition-all duration-300"
               style={{ maxWidth: '480px', maxHeight: '400px' }}
             >
               <div className="relative">
@@ -310,7 +310,7 @@ const CharacterSkillsPanel = ({
                   className="w-full h-auto object-contain max-h-[400px] rounded"
                   loading="lazy"
                 />
-                <div className="absolute inset-0 flex flex-col justify-end p-4">
+                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
                   <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
                   <p className="text-sm text-muted-foreground">{item.description}</p>
                 </div>

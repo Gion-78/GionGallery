@@ -77,7 +77,7 @@ const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
             {isSignIn ? (
               <>
                 <LogIn className="h-5 w-5 text-primary" />
-                Sign In
+                Log In
               </>
             ) : (
               <>
@@ -198,7 +198,7 @@ const LoginDialog = ({ open, onOpenChange }: LoginDialogProps) => {
               onClick={toggleForm}
               className="text-primary hover:underline font-medium"
             >
-              Sign In
+              Log In
             </button>
           </div>
         </div>

@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Menu, X, LogIn, LogOut, User } from 'lucide-react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import NavigationMenu from '../ui/NavigationMenu';
-import LoginDialogComponent from '../auth/LoginDialogComponent';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from 'sonner';
 import {
@@ -17,8 +16,8 @@ const Header = () => {
   const { currentUser, logout } = useAuth();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-  const [showLoginDialog, setShowLoginDialog] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Handle scroll event to change header style
   useEffect(() => {
@@ -37,7 +36,7 @@ const Header = () => {
 
   const handleLoginClick = () => {
     setIsMenuOpen(false);
-    setShowLoginDialog(true);
+    navigate('/login');
   };
 
   const handleLogout = async () => {
@@ -117,13 +116,13 @@ const Header = () => {
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
-            <button 
-              onClick={handleLoginClick}
+            <Link 
+              to="/login"
               className="nav-link flex items-center gap-1"
             >
               <LogIn className="w-4 h-4" />
               Login
-            </button>
+            </Link>
           )}
         </nav>
         
@@ -143,9 +142,6 @@ const Header = () => {
       
       {/* Mobile Navigation Menu */}
       <NavigationMenu isOpen={isMenuOpen} onLoginClick={handleLoginClick} currentUser={currentUser} onLogout={handleLogout} />
-      
-      {/* Login Dialog */}
-      <LoginDialogComponent open={showLoginDialog} onOpenChange={setShowLoginDialog} />
     </header>
   );
 };

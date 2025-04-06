@@ -252,7 +252,6 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [paginatedItems, setPaginatedItems] = useState<GalleryItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [imageLoaded, setImageLoaded] = useState<{[key: string]: boolean}>({});
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
@@ -319,6 +318,20 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
     };
 
     fetchData();
+    
+    // Cleanup function to reset video states when unmounting or changing categories
+    return () => {
+      // Pause all videos and reset play states when navigating away
+      Object.entries(videoRefs.current).forEach(([id, videoElement]) => {
+        if (videoElement && !videoElement.paused) {
+          videoElement.pause();
+        }
+      });
+      // Reset all playing states
+      setPlayingVideos({});
+      // Clear video refs when category changes
+      videoRefs.current = {};
+    };
   }, [category]);
 
   // Automatically play the first video when in Login Screens category
@@ -353,41 +366,86 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
         );
       }
 
-      // Apply sorting
+      // Apply sorting based on sortOption prop
       let sorted = [...filtered];
-      if (sortBy === 'newest') {
-        sorted.sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime());
-      } else if (sortBy === 'oldest') {
-        sorted.sort((a, b) => new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime());
-      } else if (sortBy === 'title') {
-        sorted.sort((a, b) => a.title.localeCompare(b.title));
-        }
+      console.log('GalleryGrid: Applying sort option:', sortOption);
       
-      setPaginatedItems(sorted);
+      if (sortOption.field === 'date') {
+        // Parse dates with error handling
+        const getValidDate = (dateStr: string | undefined): number => {
+          if (!dateStr) return 0;
+          try {
+            const timestamp = Date.parse(dateStr);
+            return isNaN(timestamp) ? 0 : timestamp;
+          } catch {
+            return 0;
+          }
+        };
+
+        sorted.sort((a, b) => {
+          const dateATime = getValidDate(a.dateAdded);
+          const dateBTime = getValidDate(b.dateAdded);
+
+          // If we can't get valid dates, fall back to alphabetical
+          if (dateATime === 0 && dateBTime === 0) {
+            return sortOption.direction === 'asc'
+              ? a.title.localeCompare(b.title)
+              : b.title.localeCompare(a.title);
+          }
+
+          return sortOption.direction === 'asc'
+            ? dateATime - dateBTime
+            : dateBTime - dateATime;
+        });
+      } else {
+        // Alphabetical sorting
+        sorted.sort((a, b) => 
+          sortOption.direction === 'asc'
+            ? a.title.localeCompare(b.title)
+            : b.title.localeCompare(a.title)
+        );
+      }
+      
+      // Calculate pagination
+      const startIndex = (currentPage - 1) * effectiveItemsPerPage;
+      const endIndex = startIndex + effectiveItemsPerPage;
+      const paginatedResult = sorted.slice(startIndex, endIndex);
+      
+      setPaginatedItems(paginatedResult);
+      
+      // Update total items count
+      if (onTotalItemsChange) {
+        onTotalItemsChange(sorted.length);
+      }
     };
     
     applyFilterAndSort();
-  }, [items, searchQuery, sortBy]);
+  }, [items, searchQuery, sortOption.field, sortOption.direction, currentPage, effectiveItemsPerPage, onTotalItemsChange]);
 
+  // Remove the old pagination effect since we're handling pagination in the filter/sort effect
   useEffect(() => {
-    // Calculate paginated items
-    const startIndex = (currentPage - 1) * effectiveItemsPerPage;
-    const endIndex = startIndex + effectiveItemsPerPage;
-    const paginatedResult = items.slice(startIndex, endIndex);
-    setPaginatedItems(paginatedResult);
-    
-    // If no items are shown but we have items and we're not on the first page
-    // this likely means we need to adjust the current page
-    if (paginatedResult.length === 0 && items.length > 0 && currentPage > 1) {
-      const totalPages = Math.ceil(items.length / effectiveItemsPerPage);
-      const validPage = Math.min(currentPage, totalPages);
+    // If we have no items but should have some based on the category,
+    // we should try to reload the data
+    if (items.length > 0 && paginatedItems.length === 0) {
+      const applyFilterAndSort = () => {
+        // Apply search filter
+        let filtered = items;
+        if (searchQuery.trim() !== '') {
+          filtered = items.filter(item => 
+            item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            item.description.toLowerCase().includes(searchQuery.toLowerCase())
+          );
+        }
+        
+        // Set total items for parent component
+        if (onTotalItemsChange) {
+          onTotalItemsChange(filtered.length);
+        }
+      };
       
-      if (validPage !== currentPage && onTotalItemsChange) {
-        // We're reusing the callback to trigger a redraw
-        setTimeout(() => onTotalItemsChange(items.length), 0);
-      }
+      applyFilterAndSort();
     }
-  }, [items, currentPage, effectiveItemsPerPage, onTotalItemsChange]);
+  }, [items, paginatedItems.length, searchQuery, onTotalItemsChange]);
 
   const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement> | React.MouseEvent<HTMLButtonElement>, item: GalleryItem) => {
     e.preventDefault();
@@ -538,67 +596,85 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
     console.log('Attempting to play/pause video:', id);
     const videoElement = videoRefs.current[id];
     
-    if (videoElement) {
-      console.log('Video element state:', {
-        id,
-        paused: videoElement.paused,
-        readyState: videoElement.readyState,
-        networkState: videoElement.networkState,
-        src: videoElement.src,
-        currentTime: videoElement.currentTime,
-        duration: videoElement.duration
-      });
-      
-      if (videoElement.paused) {
-        // If this video is paused and we want to play it:
-        // First pause any currently playing videos
-        if (category === 'Login Screens') {
-          // Find all currently playing videos and pause them
-          Object.entries(videoRefs.current).forEach(([videoId, element]) => {
-            if (videoId !== id && element && !element.paused) {
-              console.log('Pausing other video:', videoId);
-              element.pause();
-              setPlayingVideos((prev) => ({ ...prev, [videoId]: false }));
-            }
-          });
-        }
-        
-        // Force preload the video if needed
-        if (videoElement.readyState < 3) {
-          console.log('Video not fully loaded, forcing preload...');
-          videoElement.load();
-        }
-        
-        // Now play the selected video
-        console.log('Attempting to play video:', id);
-        videoElement.play()
-          .then(() => {
-            console.log('Video started playing successfully:', id);
-            setPlayingVideos((prev) => ({ ...prev, [id]: true }));
-          })
-          .catch(error => {
-            console.error('Error playing video:', error);
-            
-            // Try fallback approach - sometimes muted videos are allowed to autoplay
-            console.log('Trying fallback approach with muted video');
-            videoElement.muted = true;
-            videoElement.play()
-              .then(() => {
-                console.log('Video started playing in muted mode:', id);
-        setPlayingVideos((prev) => ({ ...prev, [id]: true }));
-              })
-              .catch(secondError => {
-                console.error('Failed to play video even when muted:', secondError);
-              });
-          });
-      } else {
-        // If this video is already playing, pause it
-        console.log('Pausing video:', id);
-        videoElement.pause();
-        setPlayingVideos((prev) => ({ ...prev, [id]: false }));
-      }
-    } else {
+    if (!videoElement) {
       console.warn('Video element not found:', id);
+      // Remove any stale play state if the element doesn't exist
+      setPlayingVideos((prev) => {
+        const newState = {...prev};
+        delete newState[id];
+        return newState;
+      });
+      return;
+    }
+    
+    console.log('Video element state:', {
+      id,
+      paused: videoElement.paused,
+      readyState: videoElement.readyState,
+      networkState: videoElement.networkState,
+      src: videoElement.src,
+      currentTime: videoElement.currentTime,
+      duration: videoElement.duration
+    });
+    
+    // Make sure video element has consistent state
+    const isCurrentlyPlaying = !videoElement.paused && videoElement.readyState > 2;
+    
+    // Update state to match reality if needed
+    if (isCurrentlyPlaying !== !!playingVideos[id]) {
+      console.log('Fixing inconsistent play state for video:', id);
+      setPlayingVideos((prev) => ({ ...prev, [id]: isCurrentlyPlaying }));
+    }
+    
+    if (videoElement.paused) {
+      // If this video is paused and we want to play it:
+      // First pause any currently playing videos
+      if (category === 'Login Screens') {
+        // Find all currently playing videos and pause them
+        Object.entries(videoRefs.current).forEach(([videoId, element]) => {
+          if (videoId !== id && element && !element.paused) {
+            console.log('Pausing other video:', videoId);
+            element.pause();
+            setPlayingVideos((prev) => ({ ...prev, [videoId]: false }));
+          }
+        });
+      }
+      
+      // Force preload the video if needed
+      if (videoElement.readyState < 3) {
+        console.log('Video not fully loaded, forcing preload...');
+        videoElement.load();
+      }
+      
+      // Now play the selected video
+      console.log('Attempting to play video:', id);
+      videoElement.play()
+        .then(() => {
+          console.log('Video started playing successfully:', id);
+          setPlayingVideos((prev) => ({ ...prev, [id]: true }));
+        })
+        .catch(error => {
+          console.error('Error playing video:', error);
+          
+          // Try fallback approach - sometimes muted videos are allowed to autoplay
+          console.log('Trying fallback approach with muted video');
+          videoElement.muted = true;
+          videoElement.play()
+            .then(() => {
+              console.log('Video started playing in muted mode:', id);
+              setPlayingVideos((prev) => ({ ...prev, [id]: true }));
+            })
+            .catch(secondError => {
+              console.error('Failed to play video even when muted:', secondError);
+              // Reset the play state if we failed to play
+              setPlayingVideos((prev) => ({ ...prev, [id]: false }));
+            });
+        });
+    } else {
+      // If this video is already playing, pause it
+      console.log('Pausing video:', id);
+      videoElement.pause();
+      setPlayingVideos((prev) => ({ ...prev, [id]: false }));
     }
   };
 
@@ -685,8 +761,30 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
                   {/* Video element */}
                   <video
                     ref={(el) => {
-                      // Store the ref
-                      videoRefs.current[String(item.id)] = el;
+                      if (el) {
+                        // Store the ref
+                        videoRefs.current[String(item.id)] = el;
+                        
+                        // Make sure video play state matches our state
+                        const shouldBePlaying = !!playingVideos[String(item.id)];
+                        const isCurrentlyPlaying = !el.paused;
+                        
+                        // Fix inconsistent play state when returning to this component
+                        if (shouldBePlaying !== isCurrentlyPlaying) {
+                          console.log(`Fixing inconsistent video state for ${item.id} (should be ${shouldBePlaying ? 'playing' : 'paused'}, is ${isCurrentlyPlaying ? 'playing' : 'paused'})`);
+                          if (shouldBePlaying && el.paused) {
+                            el.play().catch(() => {
+                              // If playing fails, update our state to match reality
+                              setPlayingVideos(prev => ({...prev, [String(item.id)]: false}));
+                            });
+                          } else if (!shouldBePlaying && !el.paused) {
+                            el.pause();
+                          }
+                        }
+                      } else if (videoRefs.current[String(item.id)]) {
+                        // Element is being removed, cleanup
+                        videoRefs.current[String(item.id)] = null;
+                      }
                       
                       // Special handling for persistent loading issues
                       if (el && category === 'Login Screens') {
@@ -734,6 +832,7 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
                     playsInline
                     loop
                     preload="auto"
+                    disablePictureInPicture
                     poster={item.imageUrl}
                     style={{ 
                       width: '100%', 
@@ -798,11 +897,8 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
                   
                   {/* Content overlay - ensure pointer events work correctly */}
                   <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-40 pointer-events-none">
-                    {/* Fix title truncation with min-height and padding */}
-                    <div className="min-h-[60px] pt-2 pb-2">
-                      <h3 className="text-lg font-semibold text-foreground line-clamp-2">{item.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-2 line-clamp-3">{item.description}</p>
-                    </div>
+                    <h3 className="text-lg font-semibold text-foreground line-clamp-2">{item.title}</h3>
+                    <p className="text-sm text-muted-foreground mb-2 line-clamp-3">{item.description}</p>
                   </div>
                 </div>
               ) : (
@@ -879,11 +975,8 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
                       />
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                      {/* Fix title truncation with min-height and padding */}
-                      <div className="min-h-[60px] pt-2">
-                        <h3 className="text-lg font-semibold text-foreground line-clamp-2">{item.title}</h3>
-                        <p className="text-sm text-muted-foreground line-clamp-3">{item.description}</p>
-                      </div>
+                      <h3 className="text-lg font-semibold text-foreground line-clamp-2">{item.title}</h3>
+                      <p className="text-sm text-muted-foreground line-clamp-3">{item.description}</p>
                     </div>
                   </div>
                 </>

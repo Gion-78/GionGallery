@@ -245,7 +245,7 @@ const LoginDialogComponent = ({ open, onOpenChange }: LoginDialogProps) => {
             ) : isSignIn ? (
               <>
                 <LogIn className="h-5 w-5 text-primary" />
-                Sign In
+                Log In
               </>
             ) : (
               <>
@@ -447,7 +447,7 @@ const LoginDialogComponent = ({ open, onOpenChange }: LoginDialogProps) => {
                     className="text-primary hover:underline font-medium"
                     disabled={isLoading}
                   >
-                    Sign In
+                    Log In
                   </button>
                 </div>
               </div>

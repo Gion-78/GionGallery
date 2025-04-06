@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { User } from 'firebase/auth';
-import { auth, onAuthStateChanged, signIn, logOut, isEmailVerified } from '../lib/firebase';
+import { auth, onAuthStateChanged, signIn, logOut, isEmailVerified, prepareRegistration, completeRegistration } from '../lib/firebase';
 
 // Define the shape of the context
 interface AuthContextType {
@@ -8,6 +8,8 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
+  signup: (email: string, password: string, username?: string) => Promise<{ email: string }>;
+  completeSignup: (email: string) => Promise<User>;
   isEmailVerified: boolean;
   refreshUser: () => Promise<void>;
 }
@@ -52,11 +54,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsVerified(false);
   };
 
+  const signup = async (email: string, password: string, username?: string) => {
+    return await prepareRegistration(email, password, username);
+  };
+
+  const completeSignup = async (email: string) => {
+    const user = await completeRegistration(email);
+    setIsVerified(user.email ? isEmailVerified(user.email) : false);
+    return user;
+  };
+
   const value = {
     currentUser,
     loading,
     login,
     logout,
+    signup,
+    completeSignup,
     isEmailVerified: isVerified,
     refreshUser,
   };
