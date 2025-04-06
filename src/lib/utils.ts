@@ -62,3 +62,28 @@ export function deleteContent(contentId: string): boolean {
     return false;
   }
 }
+
+// Clear all cached content from localStorage
+export function clearLocalStorageCache(): boolean {
+  try {
+    // Clear siteContent
+    localStorage.removeItem('siteContent');
+    
+    // Clear banners specifically
+    localStorage.removeItem('banners');
+    
+    // Clear other potential content caches
+    localStorage.removeItem('content');
+    localStorage.removeItem('contentItems');
+    localStorage.removeItem('galleryItems');
+    
+    // Trigger updates
+    triggerStorageUpdate();
+    
+    console.log('Successfully cleared all content cache from localStorage');
+    return true;
+  } catch (error) {
+    console.error('Error clearing localStorage cache:', error);
+    return false;
+  }
+}

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Download } from 'lucide-react';
+import { getAllContent } from '../../lib/supabase';
 
 // Define types for sort options
 type SortField = 'date' | 'alphabetical';
@@ -38,16 +39,63 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
 }) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [allItems, setAllItems] = useState<GalleryItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     // Function to load and filter leak items
-    const loadLeakItems = () => {
+    const loadLeakItems = async () => {
+      setLoading(true);
       try {
+        // Try to fetch from Supabase first
+        const supabaseResult = await getAllContent();
+        
+        if (supabaseResult.success && supabaseResult.data) {
+          console.log(`LeaksGallery: Fetched data from Supabase for ${category}`);
+          const parsedContent = supabaseResult.data;
+          
+          // Extract all Leaks for the specified category using various matching techniques
+          const leakItems = parsedContent
+            .filter((item: any) => {
+              // Various matching approaches
+              const exactMatch = item.category === category && item.section === 'Leaks' && item.imageUrl;
+              const relaxedMatch = item.category === category && item.imageUrl;
+              const titleMatch = item.title?.toLowerCase().includes(category.toLowerCase()) && item.imageUrl;
+              
+              // For debugging
+              if (exactMatch || relaxedMatch || titleMatch) {
+                console.log(`LeaksGallery: Found match for ${item.title} in ${category}`, {
+                  exactMatch,
+                  relaxedMatch,
+                  titleMatch,
+                  category: item.category,
+                  section: item.section
+                });
+              }
+
+              return exactMatch || relaxedMatch || titleMatch;
+            })
+            .map((item: any) => ({
+              id: item.id,
+              title: item.title || 'Untitled',
+              description: item.description || '',
+              imageUrl: item.imageUrl,
+              downloadUrl: item.zipUrl || item.imageUrl,
+              dateAdded: item.dateAdded || item.date || item.createdAt || new Date().toISOString()
+            }));
+
+          processAndSetItems(leakItems);
+          return;
+        } else {
+          console.log('LeaksGallery: Failed to get data from Supabase, falling back to localStorage');
+        }
+        
+        // Fallback to localStorage if Supabase fails
         const storedContent = localStorage.getItem('siteContent');
         if (!storedContent) {
           setAllItems([]);
           setItems([]);
           onTotalItemsChange?.(0);
+          setLoading(false);
           return;
         }
 
@@ -69,73 +117,80 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
             description: item.description || '',
             imageUrl: item.imageUrl,
             downloadUrl: item.zipUrl || item.imageUrl,
-            dateAdded: item.dateAdded || item.date || item.createdAt || new Date().toISOString() // Use any available date field
+            dateAdded: item.dateAdded || item.date || item.createdAt || new Date().toISOString() 
           }));
 
-        // Filter by search query if provided
-        const filteredItems = searchQuery
-          ? leakItems.filter(item =>
-            item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.description.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-          : leakItems;
-
-        // Sort items based on sortOption
-        const sortedItems = [...filteredItems].sort((a, b) => {
-          if (sortOption.field === 'date') {
-            // Parse dates with error handling
-            const getValidDate = (dateStr: string | undefined): number => {
-              if (!dateStr) return 0;
-              try {
-                const timestamp = Date.parse(dateStr);
-                return isNaN(timestamp) ? 0 : timestamp;
-              } catch {
-                return 0;
-              }
-            };
-
-            const dateATime = getValidDate(a.dateAdded);
-            const dateBTime = getValidDate(b.dateAdded);
-
-            // If we can't get valid dates, fall back to alphabetical
-            if (dateATime === 0 && dateBTime === 0) {
-              return sortOption.direction === 'asc'
-                ? a.title.localeCompare(b.title)
-                : b.title.localeCompare(a.title);
-            }
-
-            return sortOption.direction === 'asc'
-              ? dateATime - dateBTime
-              : dateBTime - dateATime;
-          } else {
-            // Alphabetical sorting
-            return sortOption.direction === 'asc'
-              ? a.title.localeCompare(b.title)
-              : b.title.localeCompare(a.title);
-          }
-        });
-
-        console.log(`LeaksGallery found ${sortedItems.length} items for ${category}`);
-
-        // Store all sorted items
-        setAllItems(sortedItems);
-        
-        // Calculate pagination
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedItems = sortedItems.slice(startIndex, endIndex);
-        
-        // Set the paginated items to display
-        setItems(paginatedItems);
-        
-        // Report total items for pagination
-        onTotalItemsChange?.(sortedItems.length);
+        processAndSetItems(leakItems);
       } catch (error) {
         console.error('Error loading leak content:', error);
         setAllItems([]);
         setItems([]);
         onTotalItemsChange?.(0);
+        setLoading(false);
       }
+    };
+    
+    // Helper function to process and set items (used by both Supabase and localStorage paths)
+    const processAndSetItems = (leakItems: GalleryItem[]) => {
+      // Filter by search query if provided
+      const filteredItems = searchQuery
+        ? leakItems.filter(item =>
+          item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          item.description.toLowerCase().includes(searchQuery.toLowerCase())
+        )
+        : leakItems;
+
+      // Sort items based on sortOption
+      const sortedItems = [...filteredItems].sort((a, b) => {
+        if (sortOption.field === 'date') {
+          // Parse dates with error handling
+          const getValidDate = (dateStr: string | undefined): number => {
+            if (!dateStr) return 0;
+            try {
+              const timestamp = Date.parse(dateStr);
+              return isNaN(timestamp) ? 0 : timestamp;
+            } catch {
+              return 0;
+            }
+          };
+
+          const dateATime = getValidDate(a.dateAdded);
+          const dateBTime = getValidDate(b.dateAdded);
+
+          // If we can't get valid dates, fall back to alphabetical
+          if (dateATime === 0 && dateBTime === 0) {
+            return sortOption.direction === 'asc'
+              ? a.title.localeCompare(b.title)
+              : b.title.localeCompare(a.title);
+          }
+
+          return sortOption.direction === 'asc'
+            ? dateATime - dateBTime
+            : dateBTime - dateATime;
+        } else {
+          // Alphabetical sorting
+          return sortOption.direction === 'asc'
+            ? a.title.localeCompare(b.title)
+            : b.title.localeCompare(a.title);
+        }
+      });
+
+      console.log(`LeaksGallery found ${sortedItems.length} items for ${category}`);
+
+      // Store all sorted items
+      setAllItems(sortedItems);
+      
+      // Calculate pagination
+      const startIndex = (currentPage - 1) * itemsPerPage;
+      const endIndex = startIndex + itemsPerPage;
+      const paginatedItems = sortedItems.slice(startIndex, endIndex);
+      
+      // Set the paginated items to display
+      setItems(paginatedItems);
+      
+      // Report total items for pagination
+      onTotalItemsChange?.(sortedItems.length);
+      setLoading(false);
     };
 
     loadLeakItems();
@@ -143,20 +198,106 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
 
   // Handle storage events
   useEffect(() => {
-    const handleStorageChange = () => {
-      // Get all leaks for this category
+    const handleStorageChange = async () => {
+      // First try to get from Supabase on storage change
+      try {
+        const supabaseResult = await getAllContent();
+        if (supabaseResult.success && supabaseResult.data) {
+          const parsedContent = supabaseResult.data;
+          
+          // Extract all Leaks for the specified category
+          const leakItems = parsedContent
+            .filter((item: any) => {
+              const exactMatch = item.category === category && item.section === 'Leaks' && item.imageUrl;
+              const relaxedMatch = item.category === category && item.imageUrl;
+              const titleMatch = item.title?.toLowerCase().includes(category.toLowerCase()) && item.imageUrl;
+
+              return exactMatch || relaxedMatch || titleMatch;
+            })
+            .map((item: any) => ({
+              id: item.id,
+              title: item.title || 'Untitled',
+              description: item.description || '',
+              imageUrl: item.imageUrl,
+              downloadUrl: item.zipUrl || item.imageUrl,
+              dateAdded: item.dateAdded || item.date || item.createdAt || new Date().toISOString()
+            }));
+
+          // Filter by search query if provided
+          const filteredItems = searchQuery
+            ? leakItems.filter(item =>
+              item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              item.description.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            : leakItems;
+
+          // Sort items based on sortOption
+          const sortedItems = [...filteredItems].sort((a, b) => {
+            if (sortOption.field === 'date') {
+              // Parse dates with error handling
+              const getValidDate = (dateStr: string | undefined): number => {
+                if (!dateStr) return 0;
+                try {
+                  const timestamp = Date.parse(dateStr);
+                  return isNaN(timestamp) ? 0 : timestamp;
+                } catch {
+                  return 0;
+                }
+              };
+
+              const dateATime = getValidDate(a.dateAdded);
+              const dateBTime = getValidDate(b.dateAdded);
+
+              if (dateATime === 0 && dateBTime === 0) {
+                return sortOption.direction === 'asc'
+                  ? a.title.localeCompare(b.title)
+                  : b.title.localeCompare(a.title);
+              }
+
+              return sortOption.direction === 'asc'
+                ? dateATime - dateBTime
+                : dateBTime - dateATime;
+            } else {
+              return sortOption.direction === 'asc'
+                ? a.title.localeCompare(b.title)
+                : b.title.localeCompare(a.title);
+            }
+          });
+
+          // Store all sorted items
+          setAllItems(sortedItems);
+          
+          // Calculate pagination
+          const startIndex = (currentPage - 1) * itemsPerPage;
+          const endIndex = startIndex + itemsPerPage;
+          const paginatedItems = sortedItems.slice(startIndex, endIndex);
+          
+          // Set the paginated items to display
+          setItems(paginatedItems);
+          
+          // Report total items for pagination
+          onTotalItemsChange?.(sortedItems.length);
+          setLoading(false);
+          return; // Exit if Supabase was successful
+        }
+      } catch (error) {
+        console.error('Error with Supabase in storage event handler:', error);
+      }
+
+      // Fall back to localStorage if Supabase failed
       try {
         const storedContent = localStorage.getItem('siteContent');
         if (!storedContent) {
           setAllItems([]);
           setItems([]);
           onTotalItemsChange?.(0);
+          setLoading(false);
           return;
         }
 
         const parsedContent = JSON.parse(storedContent);
 
-        // Extract all Leaks for the specified category
+        // Extract all Leaks for the specified category using various matching techniques
         const leakItems = parsedContent
           .filter((item: any) => {
             // Various matching approaches
@@ -172,76 +313,85 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
             description: item.description || '',
             imageUrl: item.imageUrl,
             downloadUrl: item.zipUrl || item.imageUrl,
-            dateAdded: item.dateAdded || item.date || item.createdAt || new Date().toISOString() // Use any available date field
+            dateAdded: item.dateAdded || item.date || item.createdAt || new Date().toISOString() 
           }));
 
-        // Filter by search query if provided
-        const filteredItems = searchQuery
-          ? leakItems.filter(item =>
-            item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            item.description.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-          : leakItems;
+        // Process the items using the same function as initial load
+        const processItems = (leakItems: GalleryItem[]) => {
+          // Filter by search query if provided
+          const filteredItems = searchQuery
+            ? leakItems.filter(item =>
+              item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              item.description.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+            : leakItems;
 
-        // Sort items based on sortOption
-        const sortedItems = [...filteredItems].sort((a, b) => {
-          if (sortOption.field === 'date') {
-            // Parse dates with error handling
-            const getValidDate = (dateStr: string | undefined): number => {
-              if (!dateStr) return 0;
-              try {
-                const timestamp = Date.parse(dateStr);
-                return isNaN(timestamp) ? 0 : timestamp;
-              } catch {
-                return 0;
+          // Sort items based on sortOption
+          const sortedItems = [...filteredItems].sort((a, b) => {
+            if (sortOption.field === 'date') {
+              // Parse dates with error handling
+              const getValidDate = (dateStr: string | undefined): number => {
+                if (!dateStr) return 0;
+                try {
+                  const timestamp = Date.parse(dateStr);
+                  return isNaN(timestamp) ? 0 : timestamp;
+                } catch {
+                  return 0;
+                }
+              };
+
+              const dateATime = getValidDate(a.dateAdded);
+              const dateBTime = getValidDate(b.dateAdded);
+
+              if (dateATime === 0 && dateBTime === 0) {
+                return sortOption.direction === 'asc'
+                  ? a.title.localeCompare(b.title)
+                  : b.title.localeCompare(a.title);
               }
-            };
 
-            const dateATime = getValidDate(a.dateAdded);
-            const dateBTime = getValidDate(b.dateAdded);
-
-            // If we can't get valid dates, fall back to alphabetical
-            if (dateATime === 0 && dateBTime === 0) {
+              return sortOption.direction === 'asc'
+                ? dateATime - dateBTime
+                : dateBTime - dateATime;
+            } else {
+              // Alphabetical sorting
               return sortOption.direction === 'asc'
                 ? a.title.localeCompare(b.title)
                 : b.title.localeCompare(a.title);
             }
+          });
 
-            return sortOption.direction === 'asc'
-              ? dateATime - dateBTime
-              : dateBTime - dateATime;
-          } else {
-            // Alphabetical sorting
-            return sortOption.direction === 'asc'
-              ? a.title.localeCompare(b.title)
-              : b.title.localeCompare(a.title);
-          }
-        });
+          // Store all sorted items
+          setAllItems(sortedItems);
+          
+          // Calculate pagination
+          const startIndex = (currentPage - 1) * itemsPerPage;
+          const endIndex = startIndex + itemsPerPage;
+          const paginatedItems = sortedItems.slice(startIndex, endIndex);
+          
+          // Set the paginated items to display
+          setItems(paginatedItems);
+          
+          // Report total items for pagination
+          onTotalItemsChange?.(sortedItems.length);
+          setLoading(false);
+        };
 
-        // Store all sorted items
-        setAllItems(sortedItems);
-        
-        // Calculate pagination
-        const startIndex = (currentPage - 1) * itemsPerPage;
-        const endIndex = startIndex + itemsPerPage;
-        const paginatedItems = sortedItems.slice(startIndex, endIndex);
-        
-        // Set the paginated items to display
-        setItems(paginatedItems);
-        
-        // Report total items for pagination
-        onTotalItemsChange?.(sortedItems.length);
+        processItems(leakItems);
       } catch (error) {
         console.error('Error handling storage event:', error);
         setAllItems([]);
         setItems([]);
         onTotalItemsChange?.(0);
+        setLoading(false);
       }
     };
 
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('storageUpdate', handleStorageChange);
+    
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storageUpdate', handleStorageChange);
     };
   }, [category, searchQuery, sortOption, currentPage, itemsPerPage, onTotalItemsChange]);
 
@@ -284,51 +434,58 @@ const LeaksGallery: React.FC<LeaksGalleryProps> = ({
 
   return (
     <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mx-auto">
-        {items.length > 0 ? (
-          items.map((item) => (
-            <div
-              key={item.id}
-              className="image-section group relative overflow-hidden p-3 rounded-lg flex justify-center items-center border border-primary/30 shadow-sm hover:shadow-md hover:border-primary/50 transition-all duration-300"
-              style={{ 
-                width: '100%', 
-                background: 'linear-gradient(to bottom, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
-                height: '220px',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              {/* Permanent download button */}
-              <div className="absolute top-2 left-2 z-30">
-                <a
-                  href={item.downloadUrl || item.imageUrl}
-                  onClick={(e) => handleDownload(e, item)}
-                  download={item.title}
-                  className="p-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground hover:text-primary rounded-full flex items-center justify-center transition-all duration-300"
-                  aria-label="Download image"
-                >
-                  <Download className="w-4 h-4" />
-                </a>
+      {loading ? (
+        <div className="col-span-full text-center py-10">
+          <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading leak content...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 mx-auto">
+          {items.length > 0 ? (
+            items.map((item) => (
+              <div
+                key={item.id}
+                className="image-section group relative overflow-hidden p-3 rounded-lg flex justify-center items-center border border-primary/30 shadow-sm hover:shadow-md hover:border-primary/50 transition-all duration-300"
+                style={{ 
+                  width: '100%', 
+                  background: 'linear-gradient(to bottom, rgba(255,255,255,0.03), rgba(255,255,255,0.01))',
+                  height: '220px',
+                  display: 'flex',
+                  alignItems: 'center'
+                }}
+              >
+                {/* Permanent download button */}
+                <div className="absolute top-2 left-2 z-30">
+                  <a
+                    href={item.downloadUrl || item.imageUrl}
+                    onClick={(e) => handleDownload(e, item)}
+                    download={item.title}
+                    className="p-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground hover:text-primary rounded-full flex items-center justify-center transition-all duration-300"
+                    aria-label="Download image"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                </div>
+                <img
+                  src={item.imageUrl}
+                  alt={item.title}
+                  className="max-w-full object-contain transition-transform duration-500"
+                  style={{ maxHeight: '180px', maxWidth: '90%', margin: 'auto' }}
+                  loading="lazy"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
+                  <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
+                  <p className="text-sm text-muted-foreground">{item.description}</p>
+                </div>
               </div>
-              <img
-                src={item.imageUrl}
-                alt={item.title}
-                className="max-w-full object-contain transition-transform duration-500"
-                style={{ maxHeight: '180px', maxWidth: '90%', margin: 'auto' }}
-                loading="lazy"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
-                <p className="text-sm text-muted-foreground">{item.description}</p>
-              </div>
+            ))
+          ) : (
+            <div className="col-span-full text-center py-10">
+              <p className="text-muted-foreground">No items found matching your criteria.</p>
             </div>
-          ))
-        ) : (
-          <div className="col-span-full text-center py-10">
-            <p className="text-muted-foreground">No items found matching your criteria.</p>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
     </>
   );
 };

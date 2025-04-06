@@ -1,22 +1,104 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { getAllContent } from '../../lib/supabase';
 
 interface Banner {
-  id: number;
+  id: string;
   title: string;
   description: string;
-  type: 'Character' | 'Event';
+  type?: 'Character' | 'Event';
   imageUrl: string;
 }
-
-// Empty array - real banner data will be loaded from API or other source
-const banners: Banner[] = [];
 
 const BannerSlider = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [banners, setBanners] = useState<Banner[]>([]);
+  const [loading, setLoading] = useState(true);
   const intervalRef = useRef<number | null>(null);
+
+  // Load banners from Supabase
+  useEffect(() => {
+    const loadBanners = async () => {
+      setLoading(true);
+      try {
+        // Always try to get fresh data from Supabase first
+        const result = await getAllContent();
+        if (result.success && result.data) {
+          // Filter to get only banner slider items
+          const bannerItems = result.data
+            .filter(item => 
+              item.section === 'Banner Slider' && 
+              item.imageUrl
+            )
+            .map(item => ({
+              id: item.id,
+              title: item.title,
+              description: item.description || '',
+              type: 'Character' as const, // Default to Character type
+              imageUrl: item.imageUrl || ''
+            }));
+          
+          console.log('Banner items from Supabase:', bannerItems);
+          setBanners(bannerItems);
+          
+          // Update localStorage with the latest data
+          localStorage.setItem('banners', JSON.stringify(bannerItems));
+        } else {
+          // Only if Supabase fails completely, check localStorage
+          console.log('Failed to load banners from Supabase, checking localStorage');
+          const bannerData = localStorage.getItem('banners');
+          if (bannerData) {
+            try {
+              const parsedBanners = JSON.parse(bannerData);
+              setBanners(parsedBanners);
+              console.log('Loaded banners from localStorage (fallback)', parsedBanners);
+            } catch (parseError) {
+              console.error('Error parsing banners from localStorage:', parseError);
+              setBanners([]);
+              // Clear invalid data
+              localStorage.removeItem('banners');
+            }
+          } else {
+            console.log('No banners found in localStorage either');
+            setBanners([]);
+          }
+        }
+      } catch (error) {
+        console.error('Error loading banners:', error);
+        // Try localStorage as last resort
+        try {
+          const bannerData = localStorage.getItem('banners');
+          if (bannerData) {
+            const parsedBanners = JSON.parse(bannerData);
+            setBanners(parsedBanners);
+            console.log('Loaded banners from localStorage after Supabase error');
+          } else {
+            setBanners([]);
+          }
+        } catch (fallbackError) {
+          console.error('Fallback to localStorage also failed:', fallbackError);
+          setBanners([]);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadBanners();
+    
+    // Also listen for storage update events to refresh banners
+    const handleStorageUpdate = () => {
+      loadBanners();
+    };
+    
+    window.addEventListener('storageUpdate', handleStorageUpdate);
+    
+    return () => {
+      window.removeEventListener('storageUpdate', handleStorageUpdate);
+    };
+  }, []);
 
   const startAutoPlay = () => {
     if (intervalRef.current || banners.length === 0) return;

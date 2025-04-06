@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Eye, Download, X } from 'lucide-react';
 import { GalleryItem } from '../../types/gallery';
+import { getAllContent } from '../../lib/supabase';
 
 // Define types for sort options
 type SortField = 'date' | 'alphabetical';
@@ -14,13 +15,57 @@ interface SortOption {
 // Empty array - data will be loaded from API or other source in production
 const mockSkillsData: GalleryItem[] = [];
 
-// Get skills content from localStorage
-const getSkillsData = (): GalleryItem[] => {
+// Get skills content from Supabase
+const getSkillsData = async (): Promise<GalleryItem[]> => {
   try {
+    // Try to fetch from Supabase first
+    const supabaseResult = await getAllContent();
+    
+    if (supabaseResult.success && supabaseResult.data) {
+      const parsedContent = supabaseResult.data;
+      console.log('Skills data from Supabase:', parsedContent);
+      
+      // Convert the stored content format to GalleryItem format
+      const contentItems = parsedContent
+        .filter((item) => {
+          // Try multiple matching strategies
+          const exactMatch = item.category === 'Skills' && item.imageUrl;
+          const sectionMatch = item.section === 'Artwork' && item.category === 'Skills' && item.imageUrl;
+          const titleMatch = (item.title?.toLowerCase()?.includes('skill') || 
+                             item.description?.toLowerCase()?.includes('skill')) && 
+                             item.imageUrl;
+          
+          const matches = exactMatch || sectionMatch || titleMatch;
+          
+          console.log(`Skills check for item: ${item.title}`, {
+            exactMatch,
+            sectionMatch,
+            titleMatch,
+            matches
+          });
+          
+          return matches;
+        })
+        .map((item) => ({
+          id: item.id,
+          title: item.title,
+          description: item.description || '',
+          category: 'Skills',
+          imageUrl: item.imageUrl || '',
+          downloadUrl: item.zipUrl || item.imageUrl || '',
+          dateAdded: item.createdAt,
+          tags: []
+        }));
+
+      console.log('Filtered Skills items from Supabase:', contentItems);
+      return [...contentItems, ...mockSkillsData];
+    }
+
+    // Fallback to localStorage for backward compatibility
     const storedContent = localStorage.getItem('siteContent');
     if (storedContent) {
       const parsedContent = JSON.parse(storedContent);
-      console.log('Parsed content for Skills panel:', parsedContent);
+      console.log('Fallback to localStorage for Skills panel:', parsedContent);
       
       // Convert the stored content format to GalleryItem format
       const contentItems = parsedContent
@@ -77,9 +122,9 @@ const CharacterSkillsPanel = ({
   
   // Load skills data initially
   useEffect(() => {
-    const loadAndFilterItems = () => {
+    const loadAndFilterItems = async () => {
       // Get all skills
-      let skillsItems = getSkillsData();
+      let skillsItems = await getSkillsData();
       
       // Filter based on search query
       if (searchQuery) {
@@ -132,9 +177,9 @@ const CharacterSkillsPanel = ({
   
   // Listen for storage changes
   useEffect(() => {
-    const handleStorageChange = () => {
+    const handleStorageChange = async () => {
       // Get all skills
-      let skillsItems = getSkillsData();
+      let skillsItems = await getSkillsData();
       
       // Filter based on search query
       if (searchQuery) {

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { ChevronLeft, ChevronRight, Pause } from 'lucide-react';
+import { getAllContent } from '../../lib/supabase';
 
 interface Banner {
   id: number | string;
@@ -8,40 +9,79 @@ interface Banner {
   imageUrl: string;
 }
 
-// Get banners from localStorage
-const getBanners = (): Banner[] => {
+// Get banners from Supabase with localStorage fallback
+const loadBannersFromSupabase = async (): Promise<Banner[]> => {
+  try {
+    // Try to get data from Supabase first
+    const result = await getAllContent();
+    if (result.success && result.data) {
+      // Filter to get only banner slider items
+      const bannerItems = result.data
+        .filter(item => 
+          item.section === 'Banner Slider' && 
+          item.imageUrl
+        )
+        .map(item => ({
+          id: item.id,
+          title: item.title,
+          description: item.description || '',
+          imageUrl: item.imageUrl || ''
+        }));
+      
+      console.log('Latest banners loaded from Supabase:', bannerItems);
+      
+      // Update localStorage for backward compatibility
+      localStorage.setItem('banners', JSON.stringify(bannerItems));
+      
+      return bannerItems;
+    }
+  } catch (error) {
+    console.error('Error loading banners from Supabase:', error);
+  }
+  
+  // Fallback to localStorage if Supabase fails
   try {
     const storedBanners = localStorage.getItem('banners');
     if (storedBanners) {
+      console.log('Using cached banners from localStorage');
       return JSON.parse(storedBanners);
     }
   } catch (error) {
-    console.error('Error loading banners:', error);
+    console.error('Error loading banners from localStorage:', error);
   }
+  
   return [];
 };
 
 const LatestBanners = () => {
-  const [banners, setBanners] = useState<Banner[]>(getBanners());
+  const [banners, setBanners] = useState<Banner[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
+  const [loading, setLoading] = useState(true);
   const intervalRef = useRef<number | null>(null);
 
-  // Update banners when localStorage changes
+  // Load banners when component mounts
   useEffect(() => {
-    const handleStorageChange = () => {
-      setBanners(getBanners());
+    const fetchBanners = async () => {
+      setLoading(true);
+      const loadedBanners = await loadBannersFromSupabase();
+      setBanners(loadedBanners);
+      setLoading(false);
     };
-
+    
+    fetchBanners();
+    
+    // Also listen for storage updates
+    const handleStorageChange = () => {
+      fetchBanners();
+    };
+    
     // Listen for storage changes
     window.addEventListener('storage', handleStorageChange);
     
     // Listen for custom storage update event
     window.addEventListener('storageUpdate', handleStorageChange);
-    
-    // Initial load
-    setBanners(getBanners());
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);

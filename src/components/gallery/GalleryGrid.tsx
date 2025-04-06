@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Download } from 'lucide-react';
 import { GalleryItem } from '../../types/gallery';
 import galleryData from '../../data/galleryData';
@@ -40,34 +40,82 @@ const getContentData = async (category: string): Promise<GalleryItem[]> => {
       const filteredItems = parsedContent.filter(item => {
         // For leaks section
         if (category === 'Main Leaks' || category === 'Beta Leaks') {
-          return (
-            (item.category === category || item.category?.toLowerCase() === category.toLowerCase()) &&
-            (item.section === 'Leaks' || item.section === 'leaks') &&
-            !!item.imageUrl
-          );
+          const matchesCategory = 
+            item.category === category || 
+            item.category?.toLowerCase() === category.toLowerCase();
+          
+          console.log(`Leak check for ${item.title}:`, {
+            category: item.category,
+            expectedCategory: category,
+            section: item.section,
+            hasImage: !!item.imageUrl,
+            matchesCategory,
+            result: matchesCategory && !!item.imageUrl
+          });
+          
+          return matchesCategory && !!item.imageUrl;
+        }
+        
+        // For Login Screens subcategory (videos)
+        if (category === 'Login Screens') {
+          const isLoginScreen = 
+            item.subcategory === 'Login Screens' || 
+            item.category === 'Login Screens';
+          
+          console.log(`Login Screens check for ${item.title}:`, {
+            category: item.category,
+            subcategory: item.subcategory,
+            hasVideo: !!item.videoUrl,
+            isLoginScreen,
+            result: isLoginScreen && (!!item.videoUrl || !!item.imageUrl)
+          });
+          
+          // Include both videos and images for this category
+          return isLoginScreen && (!!item.videoUrl || !!item.imageUrl);
         }
         
         // For other sections (artwork, etc.)
-        const isMatch = (
-          (item.category === category || item.subcategory === category) &&
-          (item.section === 'Artwork' || item.section === 'artwork') &&
-          !!item.imageUrl
-        );
+        const matchesCategory = 
+          item.category === category || 
+          item.subcategory === category;
         
-        return isMatch;
+        const hasContent = !!item.imageUrl || !!item.videoUrl;
+        
+        console.log(`Regular category check for ${item.title} (${category}):`, {
+          category: item.category,
+          subcategory: item.subcategory,
+          section: item.section,
+          hasContent,
+          matchesCategory,
+          result: matchesCategory && hasContent
+        });
+        
+        return matchesCategory && hasContent;
       });
       
-      // Convert to GalleryItem format
-      return filteredItems.map(item => ({
-        id: item.id,
-        title: item.title,
-        description: item.description || '',
-        category: item.category,
-        imageUrl: item.imageUrl || '',
-        downloadUrl: item.zipUrl || item.imageUrl || '',
-        dateAdded: item.createdAt,
-        tags: []
-      }));
+      // Convert to GalleryItem format with special handling for videos
+      return filteredItems.map(item => {
+        console.log(`Processing item for gallery:`, {
+          id: item.id,
+          title: item.title,
+          hasVideo: !!item.videoUrl,
+          videoUrl: item.videoUrl,
+          videoMetadata: item.videoMetadata
+        });
+        
+        return {
+          id: item.id,
+          title: item.title,
+          description: item.description || '',
+          category: item.subcategory || item.category,
+          imageUrl: item.imageUrl || (item.thumbnailUrl ? item.thumbnailUrl : ''),
+          videoUrl: item.videoUrl || '',
+          downloadUrl: item.zipUrl || item.imageUrl || item.videoUrl || '',
+          videoMetadata: item.videoMetadata || null,
+          dateAdded: item.createdAt,
+          tags: []
+        };
+      });
     }
     
     // Fallback to localStorage if Supabase fails
@@ -208,9 +256,58 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
   const [showScrollButton, setShowScrollButton] = useState(false);
   const [imageLoaded, setImageLoaded] = useState<{[key: string]: boolean}>({});
   const [playingVideo, setPlayingVideo] = useState<string | null>(null);
+  const videoRefs = useRef<{ [key: string]: HTMLVideoElement | null }>({});
+  const [playingVideos, setPlayingVideos] = useState<{ [key: string]: boolean }>({});
+  const [videoUrls, setVideoUrls] = useState<{ [key: string]: string }>({});
   
   // Force Resources category to always use 15 items per page
   const effectiveItemsPerPage = category === 'Resources' ? 15 : itemsPerPage;
+
+  // Function to ensure video URLs are valid and working - BUT DON'T SET STATE INSIDE
+  const checkAndFixVideoUrl = useCallback((url: string, itemId: string): string => {
+    if (!url) return '';
+    
+    // Use cached URL if available
+    if (videoUrls[itemId]) {
+      return videoUrls[itemId];
+    }
+    
+    // For initial render just return the original URL
+    return url;
+  }, [videoUrls]);
+
+  // Process and store video URLs in a useEffect to avoid render loops
+  useEffect(() => {
+    if (category === 'Login Screens') {
+      // Find all items with videos
+      const itemsWithVideos = items.filter(item => item.videoUrl);
+      
+      // Process each video URL only if not already processed
+      const newVideoUrls: {[key: string]: string} = {};
+      let hasNewUrls = false;
+      
+      itemsWithVideos.forEach(item => {
+        const itemId = String(item.id);
+        if (!videoUrls[itemId] && item.videoUrl) {
+          hasNewUrls = true;
+          // Fix for 403 Forbidden errors from ImageKit
+          if (item.videoUrl.includes('ik.imagekit.io')) {
+            // If the URL contains 'imagekit.io', add timestamp and auth parameters
+            const separator = item.videoUrl.includes('?') ? '&' : '?';
+            newVideoUrls[itemId] = `${item.videoUrl}${separator}v=${Date.now()}&auth=true`;
+            console.log(`Fixed ImageKit URL for ${itemId}:`, newVideoUrls[itemId]);
+          } else {
+            newVideoUrls[itemId] = item.videoUrl;
+          }
+        }
+      });
+
+      // Only update state if we have new URLs to add
+      if (hasNewUrls) {
+        setVideoUrls(prev => ({...prev, ...newVideoUrls}));
+      }
+    }
+  }, [items, category, videoUrls]);
 
   // Load content when component mounts or category changes
   useEffect(() => {
@@ -220,10 +317,30 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
       setItems(contentData);
       setLoading(false);
     };
-    
+
     fetchData();
   }, [category]);
-  
+
+  // Automatically play the first video when in Login Screens category
+  useEffect(() => {
+    if (category === 'Login Screens' && paginatedItems.length > 0) {
+      // Add a short delay to allow video elements to be created
+      const timeoutId = setTimeout(() => {
+        // Get the first video item's ID
+        const firstItemWithVideo = paginatedItems.find(item => item.videoUrl);
+        if (firstItemWithVideo) {
+          // REMOVING AUTO-PLAY
+          // handlePlayPauseClick(String(firstItemWithVideo.id));
+          
+          // Just log that videos are ready
+          console.log('Videos ready to play. Auto-play disabled.');
+        }
+      }, 1500); // Increased timeout to ensure video elements are properly loaded
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [category, paginatedItems]);
+
   // Filter and sort items when relevant state changes
   useEffect(() => {
     const applyFilterAndSort = () => {
@@ -231,11 +348,11 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
       let filtered = items;
       if (searchQuery.trim() !== '') {
         filtered = items.filter(item => 
-          item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+          item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
           item.description.toLowerCase().includes(searchQuery.toLowerCase())
         );
       }
-      
+
       // Apply sorting
       let sorted = [...filtered];
       if (sortBy === 'newest') {
@@ -244,7 +361,7 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
         sorted.sort((a, b) => new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime());
       } else if (sortBy === 'title') {
         sorted.sort((a, b) => a.title.localeCompare(b.title));
-      }
+        }
       
       setPaginatedItems(sorted);
     };
@@ -272,60 +389,87 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
     }
   }, [items, currentPage, effectiveItemsPerPage, onTotalItemsChange]);
 
-  const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement>, item: GalleryItem) => {
+  const handleDownload = async (e: React.MouseEvent<HTMLAnchorElement> | React.MouseEvent<HTMLButtonElement>, item: GalleryItem) => {
     e.preventDefault();
 
     try {
       // Determine if this is a video item
       const isVideoItem = !!item.videoUrl;
       
-      // For video items, use a more comprehensive approach
+      // For video items
       if (isVideoItem) {
-        // Try multiple methods to get the highest quality version
-        try {
-          // Parse the video URL to extract important parts
-          const url = new URL(item.videoUrl);
-          const urlPath = url.pathname;
+        console.log('Starting video download process for:', item.title);
+        
+        // Create a filename with .mp4 extension
+        let filename = item.title;
+        if (!filename.toLowerCase().endsWith('.mp4')) {
+          filename = filename.replace(/\.(webm|mp4|mov|avi)$/i, '');
+          filename += '.mp4';
+        }
+        
+        // Create a hidden anchor element for direct download
+        const a = document.createElement('a');
           
-          // Calculate size differences if we have original metadata
-          let qualityInfo = '';
-          if (item.videoMetadata) {
-            // Create a fetch request to check current file size
-            const headResponse = await fetch(item.videoUrl, { 
-              method: 'HEAD',
-              cache: 'no-store'
+        // Force download attribute with filename
+        a.download = filename;
+        
+        // For ImageKit videos, use direct URL with parameters
+        if (item.videoUrl.includes('imagekit.io')) {
+          try {
+            // We need to use a blob approach to control the filename
+            console.log('Using blob download approach for ImageKit video to preserve filename');
+            
+            // Create a clean filename
+            const cleanFilename = filename.replace(/[^\w\s.-]/g, '').trim();
+            
+            // Create ImageKit URL with original quality parameter but without download parameters
+            const downloadUrl = `${item.videoUrl}?tr=orig-true&v=${Date.now()}`;
+            console.log('Fetching from URL:', downloadUrl);
+            
+            // Fetch the file as a blob
+            const response = await fetch(downloadUrl, {
+              cache: 'no-store',
+              mode: 'cors',
+              credentials: 'omit' // Don't send credentials to avoid CORS issues
             });
             
-            // Get content length if available
-            const contentLength = headResponse.headers.get('content-length');
-            const currentSize = contentLength ? parseInt(contentLength, 10) : 0;
-            
-            // Calculate percentage of quality loss
-            if (currentSize > 0 && item.videoMetadata.originalSize > 0) {
-              const percentOfOriginal = Math.round((currentSize / item.videoMetadata.originalSize) * 100);
-              const sizeDiff = item.videoMetadata.originalSize - currentSize;
-              const mbDiff = (sizeDiff / (1024 * 1024)).toFixed(2);
-              
-              qualityInfo = `
-                The downloaded file will be approximately ${percentOfOriginal}% of the original quality.
-                Original size: ${(item.videoMetadata.originalSize / (1024 * 1024)).toFixed(2)}MB
-                Download size: ${(currentSize / (1024 * 1024)).toFixed(2)}MB
-                Quality reduction: ${mbDiff}MB (${100 - percentOfOriginal}%)
-              `;
-              
-              // Log quality info for debugging but don't show confirmation dialog
-              console.log('Video quality info:', qualityInfo);
+            if (!response.ok) {
+              throw new Error(`Failed to fetch video: ${response.status}`);
             }
+            
+            // Get the blob data
+            const blob = await response.blob();
+            console.log('Downloaded blob size:', blob.size);
+            
+            // Create a blob URL and force the filename
+            a.href = URL.createObjectURL(blob);
+            a.download = cleanFilename; // Don't add .mp4 again since filename already has it
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(a.href);
+            
+            console.log('Download completed with filename:', cleanFilename);
+            return;
+          } catch (error) {
+            console.error('Error with blob download approach:', error);
+            // Fall back to direct link if blob approach fails
+            alert('Failed to download with custom filename. Trying direct download...');
+            
+            const directUrl = `${item.videoUrl}?tr=orig-true&ik-attachment=true`;
+            window.location.href = directUrl;
+            return;
           }
-          
-          // Proceed with download using the best available method
-          console.log('Proceeding with video download...');
-          console.log('Quality information:', qualityInfo);
-          
-          // Method 2: Using TR parameter to get original if possible
-          const origUrl = `${url.origin}${urlPath}?tr=orig-true&_t=${Date.now()}`;
-          
-          const response = await fetch(origUrl, { cache: 'no-store' });
+        }
+        
+        // For non-ImageKit videos, use original fetch method
+        console.log('Using standard download method for non-ImageKit video');
+        const response = await fetch(item.videoUrl, { 
+          cache: 'no-store',
+          mode: 'cors',
+          credentials: 'omit' // Don't send credentials to avoid CORS issues
+        });
+        
           if (!response.ok) {
             throw new Error(`Failed to fetch video: ${response.status}`);
           }
@@ -333,27 +477,12 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
           const blob = await response.blob();
           console.log('Downloaded blob size:', blob.size);
           
-          // Prepare filename with .mp4 extension
-          let filename = item.title;
-          if (!filename.toLowerCase().endsWith('.mp4')) {
-            filename = filename.replace(/\.(webm|mp4|mov|avi)$/i, '');
-            filename += '.mp4';
-          }
-          
-          // Create a download link
-          const a = document.createElement('a');
+        // Create object URL and trigger download
           a.href = URL.createObjectURL(blob);
-          a.download = filename;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
           URL.revokeObjectURL(a.href);
-          
-        } catch (error) {
-          console.error('Error downloading original video:', error);
-          alert('Failed to download the video. The service might be limiting video quality. Please try again or contact support.');
-        }
-        
         return;
       }
       
@@ -387,15 +516,39 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
       URL.revokeObjectURL(link.href);
     } catch (error) {
       console.error('Download failed:', error);
+      
+      // Last resort fallback if all methods fail
+      try {
+        alert('Normal download failed. Attempting alternative download method...');
+        // Try a direct download with download attribute
+        const a = document.createElement('a');
+        a.href = item.videoUrl || item.downloadUrl || item.imageUrl;
+        a.download = item.title;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } catch (fallbackError) {
+        console.error('All download methods failed:', fallbackError);
+        alert('Unable to download. Try right-clicking on the content and selecting "Save As".');
+      }
     }
   };
 
-  const videoRefs = useRef<{ [key: string]: HTMLVideoElement | null }>({});
-  const [playingVideos, setPlayingVideos] = useState<{ [key: string]: boolean }>({});
-
   const handlePlayPauseClick = (id: string) => {
+    console.log('Attempting to play/pause video:', id);
     const videoElement = videoRefs.current[id];
+    
     if (videoElement) {
+      console.log('Video element state:', {
+        id,
+        paused: videoElement.paused,
+        readyState: videoElement.readyState,
+        networkState: videoElement.networkState,
+        src: videoElement.src,
+        currentTime: videoElement.currentTime,
+        duration: videoElement.duration
+      });
+      
       if (videoElement.paused) {
         // If this video is paused and we want to play it:
         // First pause any currently playing videos
@@ -403,20 +556,49 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
           // Find all currently playing videos and pause them
           Object.entries(videoRefs.current).forEach(([videoId, element]) => {
             if (videoId !== id && element && !element.paused) {
+              console.log('Pausing other video:', videoId);
               element.pause();
               setPlayingVideos((prev) => ({ ...prev, [videoId]: false }));
             }
           });
         }
         
+        // Force preload the video if needed
+        if (videoElement.readyState < 3) {
+          console.log('Video not fully loaded, forcing preload...');
+          videoElement.load();
+        }
+        
         // Now play the selected video
-        videoElement.play();
+        console.log('Attempting to play video:', id);
+        videoElement.play()
+          .then(() => {
+            console.log('Video started playing successfully:', id);
+            setPlayingVideos((prev) => ({ ...prev, [id]: true }));
+          })
+          .catch(error => {
+            console.error('Error playing video:', error);
+            
+            // Try fallback approach - sometimes muted videos are allowed to autoplay
+            console.log('Trying fallback approach with muted video');
+            videoElement.muted = true;
+            videoElement.play()
+              .then(() => {
+                console.log('Video started playing in muted mode:', id);
         setPlayingVideos((prev) => ({ ...prev, [id]: true }));
+              })
+              .catch(secondError => {
+                console.error('Failed to play video even when muted:', secondError);
+              });
+          });
       } else {
         // If this video is already playing, pause it
+        console.log('Pausing video:', id);
         videoElement.pause();
         setPlayingVideos((prev) => ({ ...prev, [id]: false }));
       }
+    } else {
+      console.warn('Video element not found:', id);
     }
   };
 
@@ -490,51 +672,137 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
                         : { aspectRatio: '3/4' })
                 : {}}
             >
-              {/* Permanent download button at top-left */}
-              <div className="absolute top-2 left-2 z-30">
-                <a
-                  href={item.downloadUrl || item.imageUrl}
-                  onClick={(e) => handleDownload(e, item)}
-                  download={item.title}
-                  className="p-2 bg-secondary hover:bg-secondary/90 text-secondary-foreground hover:text-primary rounded-full flex items-center justify-center transition-all duration-300"
-                  aria-label="Download image"
-                >
-                  <Download className="w-4 h-4" />
-                </a>
-              </div>
-              
               {item.videoUrl ? (
-                <div className="relative w-full h-full">
-                  {/* تعطيل عناصر التحكم الأصلية لإخفاء كل شيء */}
+                <div className="relative w-full overflow-hidden rounded-lg bg-black" style={{ 
+                  aspectRatio: '1560/960', 
+                  width: '100%'
+                }}>
+                  {/* Video loading indicator */}
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-10">
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                  
+                  {/* Video element */}
                   <video
-                    ref={(el) => (videoRefs.current[String(item.id)] = el)}
-                    src={item.videoUrl}
-                    poster={item.imageUrl}
-                    className={`w-full h-full ${category === 'Login Screens' ? 'object-contain' : 'object-cover'} z-10`}
-                    controls={false}  // إخفاء عناصر التحكم الأصلية
+                    ref={(el) => {
+                      // Store the ref
+                      videoRefs.current[String(item.id)] = el;
+                      
+                      // Special handling for persistent loading issues
+                      if (el && category === 'Login Screens') {
+                        // Try to manually set src and load
+                        setTimeout(() => {
+                          if (el && el.readyState < 2) {
+                            console.log('Manually loading video:', item.id);
+                            
+                            // Try with source elements instead of src attribute
+                            while (el.firstChild) {
+                              el.removeChild(el.firstChild);
+                            }
+                            
+                            // Create source elements with different approaches
+                            const videoUrl = item.videoUrl;
+                            const cachedUrl = videoUrls[String(item.id)];
+                            
+                            // Source 1: Use cached URL if available or create one with auth params
+                            const source1 = document.createElement('source');
+                            if (cachedUrl) {
+                              source1.src = cachedUrl;
+                            } else {
+                              const separator = videoUrl.includes('?') ? '&' : '?';
+                              source1.src = `${videoUrl}${separator}v=${Date.now()}&auth=true`;
+                            }
+                            source1.type = 'video/mp4';
+                            el.appendChild(source1);
+                            
+                            // Source 2: Original quality param
+                            const source2 = document.createElement('source');
+                            source2.src = `${videoUrl}?tr=orig-true&v=${Date.now()}&auth=true`;
+                            source2.type = 'video/mp4';
+                            el.appendChild(source2);
+                            
+                            // Load the video with the new sources
+                            el.load();
+                          }
+                        }, 500);
+                      }
+                    }}
+                    className="w-full h-full z-20"
+                    controls={false}
+                    crossOrigin="anonymous"
                     muted
                     playsInline
                     loop
-                  />
-                  {/* زر التشغيل/الإيقاف المخصص الوحيد */}
-                  <div className="absolute inset-0 flex items-center justify-center z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                    preload="auto"
+                    poster={item.imageUrl}
+                    style={{ 
+                      width: '100%', 
+                      height: '100%',
+                      objectFit: 'cover',
+                      objectPosition: 'center top',
+                      backgroundColor: 'black'
+                    }}
+                    onLoadedData={(e) => {
+                      console.log('Video loaded:', item.id, item.videoUrl);
+                      // Hide the loading indicator when video is ready
+                      if (e.currentTarget.parentElement) {
+                        const loadingEl = e.currentTarget.parentElement.querySelector('div.bg-black\\/50');
+                        if (loadingEl) loadingEl.classList.add('hidden');
+                      }
+                    }}
+                    onError={(e) => {
+                      console.error('Video error:', e, item.videoUrl);
+                      // Try a different approach for ImageKit videos
+                      if (item.videoUrl && item.videoUrl.includes('ik.imagekit.io') && e.currentTarget) {
+                        // Create a new source element
+                        const source = document.createElement('source');
+                        const newUrl = `${item.videoUrl}?v=${Date.now()}&auth=true&tr=orig-true`;
+                        source.src = newUrl;
+                        source.type = 'video/mp4';
+                        console.log('Trying alternative URL:', newUrl);
+                        
+                        // Clear existing sources
+                        while (e.currentTarget.firstChild) {
+                          e.currentTarget.removeChild(e.currentTarget.firstChild);
+                        }
+                        
+                        // Add the new source
+                        e.currentTarget.appendChild(source);
+                        e.currentTarget.load();
+                      }
+                    }}
+                  >
+                    {/* Add source elements for better browser compatibility */}
+                    <source src={videoUrls[String(item.id)] || item.videoUrl} type="video/mp4" />
+                    <source src={`${item.videoUrl}?tr=orig-true&v=${Date.now()}&auth=true`} type="video/mp4" />
+                  </video>
+                  
+                  {/* Custom play/pause button */}
+                  <div className="absolute inset-0 flex items-center justify-center z-30 pointer-events-none">
                     <button 
-                      className="p-4 bg-secondary rounded-full pointer-events-auto"
+                      className={`p-5 ${
+                        playingVideos[String(item.id)] 
+                          ? 'opacity-0 hover:opacity-100 bg-secondary/40' 
+                          : 'opacity-100 bg-secondary/70'
+                      } hover:bg-secondary rounded-full transition-all duration-300 shadow-lg pointer-events-auto`}
                       onClick={() => handlePlayPauseClick(String(item.id))}
                       aria-label="Play/Pause"
                     >
                       {playingVideos[String(item.id)] ? (
-                        <Pause className="w-6 h-6" />
+                        <Pause className="w-7 h-7 text-white" />
                       ) : (
-                        <Play className="w-6 h-6" />
+                        <Play className="w-7 h-7 text-white" />
                       )}
                     </button>
                   </div>
                   
-                  {/* Content at the bottom of the video, shown on hover - matches the image style */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-20 pointer-events-auto">
-                    <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
-                    <p className="text-sm text-muted-foreground mb-4">{item.description}</p>
+                  {/* Content overlay - ensure pointer events work correctly */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4 z-40 pointer-events-none">
+                    {/* Fix title truncation with min-height and padding */}
+                    <div className="min-h-[60px] pt-2 pb-2">
+                      <h3 className="text-lg font-semibold text-foreground line-clamp-2">{item.title}</h3>
+                      <p className="text-sm text-muted-foreground mb-2 line-clamp-3">{item.description}</p>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -611,13 +879,32 @@ const GalleryGrid: React.FC<GalleryGridProps> = ({
                       />
                     </div>
                     <div className="absolute inset-0 bg-gradient-to-t from-background/90 via-background/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-4">
-                      <h3 className="text-lg font-semibold text-foreground">{item.title}</h3>
-                      <p className="text-sm text-muted-foreground">{item.description}</p>
+                      {/* Fix title truncation with min-height and padding */}
+                      <div className="min-h-[60px] pt-2">
+                        <h3 className="text-lg font-semibold text-foreground line-clamp-2">{item.title}</h3>
+                        <p className="text-sm text-muted-foreground line-clamp-3">{item.description}</p>
+                      </div>
                     </div>
                   </div>
                 </>
               )}
   
+              {/* Download button */}
+              <div className="absolute top-2 left-2 z-50">
+                <button
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    console.log('Download button clicked for:', item.title);
+                    handleDownload(e as unknown as React.MouseEvent<HTMLAnchorElement>, item);
+                  }}
+                  className="p-2 bg-secondary/90 hover:bg-secondary text-secondary-foreground hover:text-primary rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer shadow-md"
+                  aria-label="Download content"
+                  type="button"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           ))
         ) : (

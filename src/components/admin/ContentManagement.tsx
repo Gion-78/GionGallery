@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Trash2, X, Image, FileArchive, Video, ExternalLink, Edit, Check, Upload, FileUp } from 'lucide-react';
+import { Trash2, X, Image, FileArchive, Video, ExternalLink, Edit, Check, Upload, FileUp, RefreshCw } from 'lucide-react';
 import { deleteFile, uploadImage, uploadZip, uploadVideo } from '../../lib/imagekit';
-import { deleteContent, triggerStorageUpdate } from '../../lib/utils';
+import { deleteContent, triggerStorageUpdate, clearLocalStorageCache } from '../../lib/utils';
 import { getAllContent, updateContent, deleteContent as deleteContentFromSupabase, ContentItem } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -63,11 +63,20 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isDeleteSelectedInProgress, setIsDeleteSelectedInProgress] = useState(false);
+  const [isClearingCache, setIsClearingCache] = useState(false);
   
   const imageInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // Load content when the modal opens
+  useEffect(() => {
+    if (isOpen) {
+      loadContent();
+      setSelectedItems([]);
+    }
+  }, [isOpen]);
 
   // Load content from Supabase and localStorage (for backward compatibility)
   const loadContent = async () => {
@@ -335,7 +344,13 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
     } else {
       // Only update text fields
       try {
-        // Get current content from localStorage
+        // First update in Supabase
+        await updateContent(item.id, {
+          title: editFormData.title,
+          description: editFormData.description
+        }, currentUser?.email);
+        
+        // Keep localStorage updated for backward compatibility
         const siteContentJSON = localStorage.getItem('siteContent');
         if (siteContentJSON) {
           const parsedContent = JSON.parse(siteContentJSON);
@@ -401,7 +416,10 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
         }
         
         // Delete from Supabase
-        await deleteContentFromSupabase(id, currentUser?.email);
+        const result = await deleteContentFromSupabase(id, currentUser?.email);
+        if (!result.success) {
+          console.error('Failed to delete from Supabase:', result.error);
+        }
         
         // Also delete from localStorage for backward compatibility
         deleteContent(id);
@@ -456,7 +474,10 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
           }
           
           // Delete from Supabase
-          await deleteContentFromSupabase(id, currentUser?.email);
+          const result = await deleteContentFromSupabase(id, currentUser?.email);
+          if (!result.success) {
+            console.error('Failed to delete from Supabase:', result.error);
+          }
           
           // Also delete from localStorage for backward compatibility
           deleteContent(id);
@@ -533,6 +554,26 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
     }
   };
 
+  // Clear all localStorage cache
+  const handleClearCache = () => {
+    setIsClearingCache(true);
+    try {
+      const result = clearLocalStorageCache();
+      if (result) {
+        alert('Cache cleared successfully. The content will now be loaded only from Supabase.');
+        // Reload content after clearing cache
+        loadContent();
+      } else {
+        alert('Failed to clear cache. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      alert('Error clearing cache: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
+
   // Only show if modal is open
   if (!isOpen) return null;
 
@@ -574,6 +615,17 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
                   </button>
                 ))}
               </div>
+              
+              {/* Clear Cache Button */}
+              <button
+                onClick={handleClearCache}
+                disabled={isClearingCache}
+                className="flex items-center gap-1 px-3 py-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label="Clear localStorage cache"
+              >
+                <RefreshCw className={`w-4 h-4 ${isClearingCache ? 'animate-spin' : ''}`} />
+                Clear Cache
+              </button>
               
               {/* Delete Selected button in header */}
               {selectedItems.length > 0 && (
