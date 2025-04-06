@@ -3,6 +3,7 @@ import { Download } from 'lucide-react';
 import { GalleryItem } from '../../types/gallery';
 import galleryData from '../../data/galleryData';
 import { Play, Pause } from 'lucide-react'; // تأكد من استيراد الأيقونات بشكل صحيح
+import { getAllContent } from '../../lib/supabase';
 
 
 
@@ -25,9 +26,51 @@ interface GalleryGridProps {
   onTotalItemsChange?: (totalItems: number) => void;
 }
 
-// Get content from localStorage or default gallery data
-const getContentData = (category: string): GalleryItem[] => {
+// Get content from Supabase or fallback to localStorage
+const getContentData = async (category: string): Promise<GalleryItem[]> => {
   try {
+    // Try to fetch from Supabase first
+    const supabaseResult = await getAllContent();
+    
+    if (supabaseResult.success && supabaseResult.data) {
+      const parsedContent = supabaseResult.data;
+      console.log('Content from Supabase:', parsedContent);
+      
+      // Filter and map the data based on category
+      const filteredItems = parsedContent.filter(item => {
+        // For leaks section
+        if (category === 'Main Leaks' || category === 'Beta Leaks') {
+          return (
+            (item.category === category || item.category?.toLowerCase() === category.toLowerCase()) &&
+            (item.section === 'Leaks' || item.section === 'leaks') &&
+            !!item.imageUrl
+          );
+        }
+        
+        // For other sections (artwork, etc.)
+        const isMatch = (
+          (item.category === category || item.subcategory === category) &&
+          (item.section === 'Artwork' || item.section === 'artwork') &&
+          !!item.imageUrl
+        );
+        
+        return isMatch;
+      });
+      
+      // Convert to GalleryItem format
+      return filteredItems.map(item => ({
+        id: item.id,
+        title: item.title,
+        description: item.description || '',
+        category: item.category,
+        imageUrl: item.imageUrl || '',
+        downloadUrl: item.zipUrl || item.imageUrl || '',
+        dateAdded: item.createdAt,
+        tags: []
+      }));
+    }
+    
+    // Fallback to localStorage if Supabase fails
     const storedContent = localStorage.getItem('siteContent');
     console.log('Raw localStorage content:', storedContent);
 
@@ -142,12 +185,14 @@ const getContentData = (category: string): GalleryItem[] => {
       return [...contentItems, ...galleryData.filter(item => item.category === category)];
     }
   } catch (error) {
-    console.error('Error loading content:', error);
+    console.error('Error loading content data:', error);
   }
-  return galleryData.filter(item => item.category === category);
+  
+  // Return empty array or mock data if all fails
+  return [];
 };
 
-const GalleryGrid = ({
+const GalleryGrid: React.FC<GalleryGridProps> = ({
   viewMode,
   category,
   searchQuery = "",
@@ -155,142 +200,57 @@ const GalleryGrid = ({
   itemsPerPage = 8,
   sortOption = { field: 'date', direction: 'desc' },
   onTotalItemsChange
-}: GalleryGridProps) => {
+}) => {
   const [items, setItems] = useState<GalleryItem[]>([]);
   const [paginatedItems, setPaginatedItems] = useState<GalleryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest' | 'title'>('newest');
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [imageLoaded, setImageLoaded] = useState<{[key: string]: boolean}>({});
+  const [playingVideo, setPlayingVideo] = useState<string | null>(null);
   
   // Force Resources category to always use 15 items per page
   const effectiveItemsPerPage = category === 'Resources' ? 15 : itemsPerPage;
 
+  // Load content when component mounts or category changes
   useEffect(() => {
-    // Get items for the selected category
-    let filteredItems = getContentData(category);
-
-    if (searchQuery) {
-      filteredItems = filteredItems.filter(item =>
-        item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.description.toLowerCase().includes(searchQuery.toLowerCase())
-      );
-    }
-
-    // Sort the items based on sortOption
-    filteredItems.sort((a, b) => {
-      if (sortOption.field === 'date') {
-        // Parse dates with error handling
-        const getValidDate = (dateStr: string | undefined): number => {
-          if (!dateStr) return 0;
-          try {
-            const timestamp = Date.parse(dateStr);
-            return isNaN(timestamp) ? 0 : timestamp;
-          } catch {
-            return 0;
-          }
-        };
-
-        const dateATime = getValidDate(a.dateAdded || a.date);
-        const dateBTime = getValidDate(b.dateAdded || b.date);
-
-        // If we can't get valid dates, fall back to alphabetical
-        if (dateATime === 0 && dateBTime === 0) {
-          return sortOption.direction === 'asc'
-            ? a.title.localeCompare(b.title)
-            : b.title.localeCompare(a.title);
-        }
-
-        return sortOption.direction === 'asc'
-          ? dateATime - dateBTime
-          : dateBTime - dateATime;
-      } else {
-        // Alphabetical sorting
-        return sortOption.direction === 'asc'
-          ? a.title.localeCompare(b.title)
-          : b.title.localeCompare(a.title);
-      }
-    });
-
-    setItems(filteredItems);
-
-    // Notify parent component about the total number of items
-    if (onTotalItemsChange) {
-      onTotalItemsChange(filteredItems.length);
-    }
-
-    // When items change, ensure current page is valid
-    const totalPages = Math.ceil(filteredItems.length / effectiveItemsPerPage);
-    if (currentPage > totalPages && totalPages > 0) {
-      // If current page is beyond total pages, set it to the last valid page
-      const validPage = Math.max(1, totalPages);
-      // This is a workaround to communicate the page change back to parent
-      if (onTotalItemsChange) {
-        // We're reusing the callback to trigger a redraw
-        setTimeout(() => onTotalItemsChange(filteredItems.length), 0);
-      }
-    }
-  }, [category, searchQuery, sortOption, onTotalItemsChange, currentPage, effectiveItemsPerPage]);
-
-  // Listen for storage changes
+    const fetchData = async () => {
+      setLoading(true);
+      const contentData = await getContentData(category);
+      setItems(contentData);
+      setLoading(false);
+    };
+    
+    fetchData();
+  }, [category]);
+  
+  // Filter and sort items when relevant state changes
   useEffect(() => {
-    const handleStorageChange = () => {
-      // Refresh items when localStorage changes
-      let refreshedItems = getContentData(category);
-
-      if (searchQuery) {
-        refreshedItems = refreshedItems.filter(item =>
-          item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const applyFilterAndSort = () => {
+      // Apply search filter
+      let filtered = items;
+      if (searchQuery.trim() !== '') {
+        filtered = items.filter(item => 
+          item.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
           item.description.toLowerCase().includes(searchQuery.toLowerCase())
         );
       }
-
-      // Sort the items based on sortOption
-      refreshedItems.sort((a, b) => {
-        if (sortOption.field === 'date') {
-          // Parse dates with error handling
-          const getValidDate = (dateStr: string | undefined): number => {
-            if (!dateStr) return 0;
-            try {
-              const timestamp = Date.parse(dateStr);
-              return isNaN(timestamp) ? 0 : timestamp;
-            } catch {
-              return 0;
-            }
-          };
-
-          const dateATime = getValidDate(a.dateAdded || a.date);
-          const dateBTime = getValidDate(b.dateAdded || b.date);
-
-          // If we can't get valid dates, fall back to alphabetical
-          if (dateATime === 0 && dateBTime === 0) {
-            return sortOption.direction === 'asc'
-              ? a.title.localeCompare(b.title)
-              : b.title.localeCompare(a.title);
-          }
-
-          return sortOption.direction === 'asc'
-            ? dateATime - dateBTime
-            : dateBTime - dateATime;
-        } else {
-          // Alphabetical sorting
-          return sortOption.direction === 'asc'
-            ? a.title.localeCompare(b.title)
-            : b.title.localeCompare(a.title);
-        }
-      });
-
-      setItems(refreshedItems);
-
-      if (onTotalItemsChange) {
-        onTotalItemsChange(refreshedItems.length);
+      
+      // Apply sorting
+      let sorted = [...filtered];
+      if (sortBy === 'newest') {
+        sorted.sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime());
+      } else if (sortBy === 'oldest') {
+        sorted.sort((a, b) => new Date(a.dateAdded).getTime() - new Date(b.dateAdded).getTime());
+      } else if (sortBy === 'title') {
+        sorted.sort((a, b) => a.title.localeCompare(b.title));
       }
+      
+      setPaginatedItems(sorted);
     };
-
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('storageUpdate', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('storageUpdate', handleStorageChange);
-    };
-  }, [category, searchQuery, sortOption, onTotalItemsChange]);
+    
+    applyFilterAndSort();
+  }, [items, searchQuery, sortBy]);
 
   useEffect(() => {
     // Calculate paginated items

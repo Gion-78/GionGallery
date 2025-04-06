@@ -2,24 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Trash2, X, Image, FileArchive, Video, ExternalLink, Edit, Check, Upload, FileUp } from 'lucide-react';
 import { deleteFile, uploadImage, uploadZip, uploadVideo } from '../../lib/imagekit';
 import { deleteContent, triggerStorageUpdate } from '../../lib/utils';
-
-interface ContentItem {
-  id: string;
-  title: string;
-  description: string;
-  section: string;
-  category: string;
-  subcategory?: string;
-  imageUrl: string | null;
-  thumbnailUrl: string | null;
-  zipUrl: string | null;
-  videoUrl: string | null;
-  fileId: string | null;
-  zipFileId: string | null;
-  videoFileId: string | null;
-  createdAt: string;
-  folder: string;
-}
+import { getAllContent, updateContent, deleteContent as deleteContentFromSupabase, ContentItem } from '../../lib/supabase';
 
 // Categories and subcategories structure (import structure from UploadContent)
 const categoryStructure = {
@@ -84,16 +67,18 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
   const videoInputRef = useRef<HTMLInputElement>(null);
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Load content from localStorage
-  useEffect(() => {
-    if (isOpen) {
-      loadContent();
-      setSelectedItems([]);
-    }
-  }, [isOpen]);
-
-  const loadContent = () => {
+  // Load content from Supabase and localStorage (for backward compatibility)
+  const loadContent = async () => {
     try {
+      // Load from Supabase (primary source)
+      const supabaseResult = await getAllContent();
+      
+      if (supabaseResult.success && supabaseResult.data) {
+        setContentItems(supabaseResult.data.reverse()); // Show newest first
+        return;
+      }
+      
+      // Fallback to localStorage if Supabase fails
       const siteContentJSON = localStorage.getItem('siteContent');
       if (siteContentJSON) {
         const parsedContent = JSON.parse(siteContentJSON);
@@ -293,7 +278,20 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
           }
         }
         
-        // Update content in localStorage with new URLs
+        // Update content in Supabase
+        await updateContent(item.id, {
+          title: editFormData.title,
+          description: editFormData.description,
+          imageUrl: newImageUrl,
+          fileId: newImageFileId,
+          thumbnailUrl: newThumbnailUrl,
+          zipUrl: newZipUrl,
+          zipFileId: newZipFileId,
+          videoUrl: newVideoUrl,
+          videoFileId: newVideoFileId
+        });
+        
+        // Keep localStorage updated for backward compatibility
         const siteContentJSON = localStorage.getItem('siteContent');
         if (siteContentJSON) {
           const parsedContent = JSON.parse(siteContentJSON);
@@ -380,71 +378,98 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
     setUploadError(null);
   };
 
-  // Handle deletion of content
-  const handleDelete = async (item: ContentItem) => {
-    // Set this item as being deleted
-    setIsDeleting(prev => ({ ...prev, [item.id]: true }));
+  // Delete a content item
+  const deleteItem = async (id: string) => {
+    setIsDeleting({ ...isDeleting, [id]: true });
     
     try {
-      // First try to delete from ImageKit if we have files
-      let imagekitDeletionFailed = false;
+      // Find the item to get file IDs
+      const itemToDelete = contentItems.find(item => item.id === id);
       
-      // Delete image if exists
-      if (item.imageUrl && item.fileId) {
-        const imageResult = await deleteFile(item.fileId);
-        if (!imageResult.success) {
-          imagekitDeletionFailed = true;
+      if (itemToDelete) {
+        // Delete files from storage if they exist
+        if (itemToDelete.fileId) {
+          await deleteFile(itemToDelete.fileId);
         }
-      }
-      
-      // Delete zip if exists
-      if (item.zipUrl && item.zipFileId) {
-        const zipResult = await deleteFile(item.zipFileId);
-        if (!zipResult.success) {
-          imagekitDeletionFailed = true;
+        if (itemToDelete.zipFileId) {
+          await deleteFile(itemToDelete.zipFileId);
         }
-      }
-      
-      // Delete video if exists
-      if (item.videoUrl && item.videoFileId) {
-        const videoResult = await deleteFile(item.videoFileId);
-        if (!videoResult.success) {
-          imagekitDeletionFailed = true;
+        if (itemToDelete.videoFileId) {
+          await deleteFile(itemToDelete.videoFileId);
         }
-      }
-      
-      // Delete from localStorage
-      const localStorageResult = deleteContent(item.id);
-      
-      if (localStorageResult) {
-        // Successfully deleted from localStorage
-        setDeletionResults(prev => ({ ...prev, [item.id]: 'success' }));
         
-        // Reload content
+        // Delete from Supabase
+        await deleteContentFromSupabase(id);
+        
+        // Also delete from localStorage for backward compatibility
+        deleteContent(id);
+        
+        setDeletionResults({ ...deletionResults, [id]: 'success' });
+        
+        // Reload content after deletion
         loadContent();
         
-        // Clear the deletion result after a delay
+        // Clear result after a delay
         setTimeout(() => {
           setDeletionResults(prev => {
             const newResults = { ...prev };
-            delete newResults[item.id];
+            delete newResults[id];
             return newResults;
           });
         }, 3000);
-      } else {
-        // Failed to delete from localStorage
-        setDeletionResults(prev => ({ ...prev, [item.id]: 'error' }));
       }
     } catch (error) {
       console.error('Error deleting content:', error);
-      setDeletionResults(prev => ({ ...prev, [item.id]: 'error' }));
+      setDeletionResults({ ...deletionResults, [id]: 'error' });
     } finally {
-      // Clear the deleting state
       setIsDeleting(prev => {
-        const newState = { ...prev };
-        delete newState[item.id];
-        return newState;
+        const newDeleting = { ...prev };
+        delete newDeleting[id];
+        return newDeleting;
       });
+    }
+  };
+
+  // Delete selected items
+  const deleteSelectedItems = async () => {
+    if (selectedItems.length === 0) return;
+    
+    setIsDeleteSelectedInProgress(true);
+    
+    try {
+      for (const id of selectedItems) {
+        // Find the item to get file IDs
+        const itemToDelete = contentItems.find(item => item.id === id);
+        
+        if (itemToDelete) {
+          // Delete files from storage if they exist
+          if (itemToDelete.fileId) {
+            await deleteFile(itemToDelete.fileId);
+          }
+          if (itemToDelete.zipFileId) {
+            await deleteFile(itemToDelete.zipFileId);
+          }
+          if (itemToDelete.videoFileId) {
+            await deleteFile(itemToDelete.videoFileId);
+          }
+          
+          // Delete from Supabase
+          await deleteContentFromSupabase(id);
+          
+          // Also delete from localStorage for backward compatibility
+          deleteContent(id);
+        }
+      }
+      
+      // Clear selected items
+      setSelectedItems([]);
+      
+      // Reload content
+      loadContent();
+    } catch (error) {
+      console.error('Error deleting selected items:', error);
+    } finally {
+      setIsDeleteSelectedInProgress(false);
     }
   };
 
@@ -506,73 +531,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
     }
   };
 
-  // Delete multiple selected items
-  const handleDeleteSelected = async () => {
-    if (selectedItems.length === 0) return;
-    
-    setIsDeleteSelectedInProgress(true);
-    
-    // Store original deletion state to restore later
-    const originalDeletingState = { ...isDeleting };
-    
-    // Set all selected items as being deleted
-    const newDeletingState = { ...originalDeletingState };
-    selectedItems.forEach(itemId => {
-      newDeletingState[itemId] = true;
-    });
-    setIsDeleting(newDeletingState);
-    
-    try {
-      // Process each item one by one
-      for (const itemId of selectedItems) {
-        const item = contentItems.find(content => content.id === itemId);
-        if (!item) continue;
-        
-        // Delete from ImageKit if files exist
-        if (item.imageUrl && item.fileId) {
-          await deleteFile(item.fileId);
-        }
-        
-        if (item.zipUrl && item.zipFileId) {
-          await deleteFile(item.zipFileId);
-        }
-        
-        if (item.videoUrl && item.videoFileId) {
-          await deleteFile(item.videoFileId);
-        }
-        
-        // Delete from localStorage
-        deleteContent(item.id);
-        
-        // Update deletion state for this item
-        setDeletionResults(prev => ({ ...prev, [item.id]: 'success' }));
-      }
-      
-      // Reload content after all deletions
-      loadContent();
-      
-      // Clear selected items
-      setSelectedItems([]);
-      
-      // Clear the deletion results after a delay
-      setTimeout(() => {
-        setDeletionResults({});
-      }, 3000);
-      
-    } catch (error) {
-      console.error('Error deleting selected content:', error);
-      // Mark all as error if something fails
-      const errorResults = { ...deletionResults };
-      selectedItems.forEach(itemId => {
-        errorResults[itemId] = 'error';
-      });
-      setDeletionResults(errorResults);
-    } finally {
-      setIsDeleteSelectedInProgress(false);
-      setIsDeleting(originalDeletingState);
-    }
-  };
-
   // Only show if modal is open
   if (!isOpen) return null;
 
@@ -618,7 +576,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
               {/* Delete Selected button in header */}
               {selectedItems.length > 0 && (
                 <button
-                  onClick={handleDeleteSelected}
+                  onClick={deleteSelectedItems}
                   disabled={isDeleteSelectedInProgress}
                   className={`px-4 py-1.5 mr-2 text-sm bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors flex items-center gap-1.5 ${
                     isDeleteSelectedInProgress ? 'opacity-50 cursor-not-allowed' : ''
@@ -961,7 +919,7 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
                           </button>
                         )}
                         <button
-                          onClick={() => handleDelete(item)}
+                          onClick={() => deleteItem(item.id)}
                           disabled={!!isDeleting[item.id]}
                           className={`text-red-500 hover:text-red-700 transition-colors ${
                             isDeleting[item.id] ? 'opacity-50 cursor-not-allowed' : ''

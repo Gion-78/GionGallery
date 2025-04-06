@@ -3,6 +3,7 @@ import { X, Upload, Loader2, Plus, Minus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { uploadImage, uploadZip, uploadVideo } from '../../lib/imagekit';
 import { triggerStorageUpdate } from '../../lib/utils';
+import { saveContent } from '../../lib/supabase';
 
 // Categories and subcategories structure
 const categoryStructure = {
@@ -367,7 +368,10 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
         // Add new content
         existingContent.push(metadata);
         
-        // Save back to storage
+        // Save to Supabase
+        await saveContent(metadata);
+        
+        // Keep localStorage for backward compatibility temporarily
         localStorage.setItem('siteContent', JSON.stringify(existingContent));
         
         // If this is a banner slider item, also update the banners
