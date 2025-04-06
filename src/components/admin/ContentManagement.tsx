@@ -293,23 +293,8 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
           }
         }
         
-        // Create direct ImageKit URLs for better cache persistence and consistency
-        const imageKitBaseUrl = "https://ik.imagekit.io/GionGallery/";
-        const createDirectImageKitUrl = (path: string | null) => {
-          if (!path) return null;
-          // Extract the path after the domain if it's already a full URL
-          if (path.includes('imagekit.io')) {
-            const pathParts = path.split('GionGallery/');
-            if (pathParts.length > 1) {
-              return `${imageKitBaseUrl}${pathParts[1]}`;
-            }
-          }
-          return path;
-        };
-        
         // Update content in localStorage with new URLs
         const siteContentJSON = localStorage.getItem('siteContent');
-        
         if (siteContentJSON) {
           const parsedContent = JSON.parse(siteContentJSON);
           
@@ -320,12 +305,12 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
                 ...contentItem,
                 title: editFormData.title,
                 description: editFormData.description,
-                imageUrl: createDirectImageKitUrl(newImageUrl),
+                imageUrl: newImageUrl,
                 fileId: newImageFileId,
-                thumbnailUrl: createDirectImageKitUrl(newThumbnailUrl),
-                zipUrl: createDirectImageKitUrl(newZipUrl),
+                thumbnailUrl: newThumbnailUrl,
+                zipUrl: newZipUrl,
                 zipFileId: newZipFileId,
-                videoUrl: createDirectImageKitUrl(newVideoUrl),
+                videoUrl: newVideoUrl,
                 videoFileId: newVideoFileId
               };
             }

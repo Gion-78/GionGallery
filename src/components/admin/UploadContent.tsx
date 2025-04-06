@@ -333,20 +333,6 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
           videoResult.originalType = originalVideoType;
         }
         
-        // Create direct ImageKit URLs for better cache persistence and consistency
-        const imageKitBaseUrl = "https://ik.imagekit.io/GionGallery/";
-        const createDirectImageKitUrl = (path: string | null) => {
-          if (!path) return null;
-          // Extract the path after the domain if it's already a full URL
-          if (path.includes('imagekit.io')) {
-            const pathParts = path.split('GionGallery/');
-            if (pathParts.length > 1) {
-              return `${imageKitBaseUrl}${pathParts[1]}`;
-            }
-          }
-          return path;
-        };
-        
         // Create metadata for the upload
         const metadata = {
           id: Date.now().toString(),
@@ -355,10 +341,10 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
           section: activeSection,
           category: activeCategory,
           subcategory: activeSubcategory,
-          imageUrl: createDirectImageKitUrl(imageResult?.url) || null,
-          thumbnailUrl: createDirectImageKitUrl(imageResult?.thumbnailUrl) || null,
-          zipUrl: createDirectImageKitUrl(zipResult?.url) || null,
-          videoUrl: createDirectImageKitUrl(videoResult?.url) || null,
+          imageUrl: imageResult?.url || null,
+          thumbnailUrl: imageResult?.thumbnailUrl || null,
+          zipUrl: zipResult?.url || null,
+          videoUrl: videoResult?.url || null,
           fileId: imageResult?.fileId || null,
           zipFileId: zipResult?.fileId || null,
           videoFileId: videoResult?.fileId || null,
