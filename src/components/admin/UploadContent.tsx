@@ -359,7 +359,7 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
           folder
         };
         
-        console.log('Saving content with metadata:', metadata);
+        console.log('Saving metadata to Supabase:', metadata);
         
         // Get existing content or initialize empty array
         const existingContentJSON = localStorage.getItem('siteContent') || '[]';
@@ -369,7 +369,16 @@ const UploadContent: React.FC<UploadContentProps> = ({ isOpen, onClose }) => {
         existingContent.push(metadata);
         
         // Save to Supabase
-        await saveContent(metadata);
+        try {
+          const result = await saveContent(metadata);
+          if (!result.success) {
+            console.error('Failed to save to Supabase:', result.error);
+          } else {
+            console.log('Successfully saved to Supabase');
+          }
+        } catch (error) {
+          console.error('Exception when saving to Supabase:', error);
+        }
         
         // Keep localStorage for backward compatibility temporarily
         localStorage.setItem('siteContent', JSON.stringify(existingContent));
