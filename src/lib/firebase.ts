@@ -10,8 +10,6 @@ import {
   GoogleAuthProvider,
   signInWithPopup
 } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
-import { isDevelopment } from './environment';
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
@@ -27,7 +25,6 @@ const firebaseConfig = {
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const functions = getFunctions(app);
 const googleProvider = new GoogleAuthProvider();
 
 // Email validation regex
@@ -43,56 +40,38 @@ const generateVerificationCode = () => {
 const verificationCodes = new Map<string, string>();
 const pendingRegistrations = new Map<string, { password: string, username?: string }>();
 
-// Send verification code to user's email using Firebase Cloud Functions
+// Send verification code to user's email
+// In a real app, this would use a service like SendGrid, Mailgun, or Firebase Cloud Functions
 const sendVerificationCodeEmail = async (email: string, code: string): Promise<boolean> => {
-  // Immediately check if we're in development mode
-  if (isDevelopment()) {
-    console.log(`[DEV MODE] Email verification code for ${email}: ${code}`);
-    console.log('[DEV MODE] In production, this would be sent via email');
-    return true; // Simulate success in development mode
-  }
-  
   try {
-    // In production mode, try to call the Firebase function
-    const sendVerificationCode = httpsCallable(functions, 'sendVerificationCode');
+    // SIMULATION ONLY: In a real application, you would implement an actual email sending service
+    // This would typically be done using a backend API or Firebase Cloud Functions
     
-    try {
-      const result = await sendVerificationCode({ email, code });
-      console.log("Verification email sent successfully via callable function");
-      return (result.data as any).success;
-    } catch (callableError) {
-      console.error('Error with callable function, attempting HTTP fallback:', callableError);
+    // For demo purposes, we'll log what would happen in a real app
+    console.log(`In a real app, an email would be sent to ${email} with code: ${code}`);
+    
+    // The email might look like:
+    const emailSubject = 'Your verification code';
+    const emailBody = `
+      Hello,
       
-      // Fallback to HTTP endpoint if callable function fails
-      const functionRegion = 'us-central1'; // Change if your functions are deployed to a different region
-      const functionUrl = `https://${functionRegion}-${firebaseConfig.projectId}.cloudfunctions.net/sendVerificationCodeHttp`;
+      Your verification code is: ${code}
       
-      const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, code }),
-      });
+      This code will expire in 10 minutes.
       
-      if (!response.ok) {
-        throw new Error(`HTTP Error: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log("Verification email sent successfully via HTTP endpoint");
-      return data.success;
-    }
+      Thank you,
+      Your App Team
+    `;
+    
+    console.log('Email subject:', emailSubject);
+    console.log('Email body:', emailBody);
+    
+    // Simulate a short delay as if sending an email
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    return true;
   } catch (error) {
     console.error('Error sending email:', error);
-    
-    // If everything failed but we're in development, still return success
-    if (isDevelopment()) {
-      console.log(`[DEV FALLBACK] Verification code for ${email}: ${code}`);
-      console.log('[DEV FALLBACK] Simulating successful email send for development');
-      return true;
-    }
-    
     throw error;
   }
 };
