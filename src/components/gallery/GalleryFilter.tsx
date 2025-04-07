@@ -181,7 +181,7 @@ const GalleryFilter: FC<GalleryFilterProps> = ({ activeCategory, setActiveCatego
                 : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
             }`}
           >
-            Other
+            Miscellaneous
             <ChevronDown className="w-4 h-4 ml-1" />
           </button>
         </DropdownMenuTrigger>

@@ -1,4 +1,3 @@
-
 import { useEffect } from 'react';
 import Layout from '../components/layout/Layout';
 import { observeElements, fadeInUp } from '../lib/animations';
@@ -31,7 +30,20 @@ const About = () => {
         <div className="container relative mx-auto h-full flex flex-col justify-center items-center px-6 md:px-12 text-center">
           <div className="max-w-4xl mx-auto animate-fade-in">
             <h1 className="font-onePiece text-4xl md:text-6xl lg:text-7xl text-foreground mb-4">
-              <span className="text-primary">ABOUT</span> US
+              <span 
+                className="relative" 
+                style={{ 
+                  fontFamily: "'Playfair Display', serif", 
+                  letterSpacing: "0.05em", 
+                  fontWeight: "700",
+                  background: "linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--primary)/0.8))",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  textShadow: "0 0 15px rgba(var(--primary), 0.3)",
+                  display: "inline-block",
+                  padding: "0 0.1em"
+                }}
+              >ABOUT</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               Dedicated to bringing you the latest news, leaks, and content from One Piece Fighting Path.

@@ -529,7 +529,20 @@ const Leaks = () => {
         <div className="container relative mx-auto h-full flex flex-col justify-center items-center px-6 md:px-12 text-center">
           <div className="max-w-4xl mx-auto animate-fade-in">
             <h1 className="font-onePiece text-4xl md:text-6xl lg:text-7xl text-foreground mb-4">
-              <span className="text-primary">LEAKS</span>
+              <span 
+                className="relative" 
+                style={{ 
+                  fontFamily: "'Playfair Display', serif", 
+                  letterSpacing: "0.05em", 
+                  fontWeight: "700",
+                  background: "linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--primary)/0.8))",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  textShadow: "0 0 15px rgba(var(--primary), 0.3)",
+                  display: "inline-block",
+                  padding: "0 0.1em"
+                }}
+              >LEAKS</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               Stay ahead of the game with the most recent leaks, rumors, and early information about upcoming content for One Piece Fighting Path.
@@ -575,11 +588,19 @@ const Leaks = () => {
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <button
-                    className="bg-secondary/50 border border-border/30 text-foreground rounded-md p-2.5 hover:bg-secondary transition-all duration-200"
+                    className={`bg-secondary/50 border border-border/30 ${
+                      !(sortOptions[activeCategory].field === 'date' && sortOptions[activeCategory].direction === 'desc') 
+                        ? 'text-primary' 
+                        : 'text-foreground'
+                    } rounded-md p-2.5 hover:bg-secondary transition-all duration-200`}
                     aria-label="Filter options"
                   >
                     <span className="sr-only">Sort by</span>
-                    <Filter className="w-5 h-5" />
+                    <Filter className={`w-5 h-5 ${
+                      !(sortOptions[activeCategory].field === 'date' && sortOptions[activeCategory].direction === 'desc') 
+                        ? 'text-primary' 
+                        : ''
+                    }`} />
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-56">

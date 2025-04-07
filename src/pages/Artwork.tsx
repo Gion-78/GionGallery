@@ -561,71 +561,76 @@ const Artwork = () => {
   };
 
   // Create a reusable filter dropdown component
-  const FilterDropdown = () => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className="bg-secondary/50 border border-border/30 text-foreground rounded-md p-2.5 hover:bg-secondary transition-all duration-200 ml-2"
-          aria-label="Filter options"
-        >
-          <span className="sr-only">Sort by</span>
-          <Filter className="w-5 h-5" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>Sort by</DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        
-        {/* Date Upload Options */}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <Calendar className="mr-2 h-4 w-4" />
-            <span>Date Released</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem 
-              onClick={() => updateSortOptions('date', 'asc')}
-              className={sortOptions[activeCategory].field === 'date' && sortOptions[activeCategory].direction === 'asc' ? 'bg-primary/20 text-primary' : ''}
-            >
-              <SortAsc className="mr-2 h-4 w-4" />
-              <span>Oldest First</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => updateSortOptions('date', 'desc')}
-              className={sortOptions[activeCategory].field === 'date' && sortOptions[activeCategory].direction === 'desc' ? 'bg-primary/20 text-primary' : ''}
-            >
-              <SortDesc className="mr-2 h-4 w-4" />
-              <span>Newest First</span>
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        
-        {/* Alphabetical Options */}
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <AlignLeft className="mr-2 h-4 w-4" />
-            <span>Alphabetical</span>
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            <DropdownMenuItem 
-              onClick={() => updateSortOptions('alphabetical', 'asc')}
-              className={sortOptions[activeCategory].field === 'alphabetical' && sortOptions[activeCategory].direction === 'asc' ? 'bg-primary/20 text-primary' : ''}
-            >
-              <SortAsc className="mr-2 h-4 w-4" />
-              <span>A-Z</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem 
-              onClick={() => updateSortOptions('alphabetical', 'desc')}
-              className={sortOptions[activeCategory].field === 'alphabetical' && sortOptions[activeCategory].direction === 'desc' ? 'bg-primary/20 text-primary' : ''}
-            >
-              <SortDesc className="mr-2 h-4 w-4" />
-              <span>Z-A</span>
-            </DropdownMenuItem>
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+  const FilterDropdown = () => {
+    // Check if current sort option is anything other than "Newest First"
+    const isCustomFilter = !(sortOptions[activeCategory].field === 'date' && sortOptions[activeCategory].direction === 'desc');
+    
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            className={`bg-secondary/50 border border-border/30 ${isCustomFilter ? 'text-primary' : 'text-foreground'} rounded-md p-2.5 hover:bg-secondary transition-all duration-200 ml-2`}
+            aria-label="Filter options"
+          >
+            <span className="sr-only">Sort by</span>
+            <Filter className={`w-5 h-5 ${isCustomFilter ? 'text-primary' : ''}`} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel>Sort by</DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          
+          {/* Date Upload Options */}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Calendar className="mr-2 h-4 w-4" />
+              <span>Date Released</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem 
+                onClick={() => updateSortOptions('date', 'asc')}
+                className={sortOptions[activeCategory].field === 'date' && sortOptions[activeCategory].direction === 'asc' ? 'bg-primary/20 text-primary' : ''}
+              >
+                <SortAsc className="mr-2 h-4 w-4" />
+                <span>Oldest First</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => updateSortOptions('date', 'desc')}
+                className={sortOptions[activeCategory].field === 'date' && sortOptions[activeCategory].direction === 'desc' ? 'bg-primary/20 text-primary' : ''}
+              >
+                <SortDesc className="mr-2 h-4 w-4" />
+                <span>Newest First</span>
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          
+          {/* Alphabetical Options */}
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <AlignLeft className="mr-2 h-4 w-4" />
+              <span>Alphabetical</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              <DropdownMenuItem 
+                onClick={() => updateSortOptions('alphabetical', 'asc')}
+                className={sortOptions[activeCategory].field === 'alphabetical' && sortOptions[activeCategory].direction === 'asc' ? 'bg-primary/20 text-primary' : ''}
+              >
+                <SortAsc className="mr-2 h-4 w-4" />
+                <span>A-Z</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem 
+                onClick={() => updateSortOptions('alphabetical', 'desc')}
+                className={sortOptions[activeCategory].field === 'alphabetical' && sortOptions[activeCategory].direction === 'desc' ? 'bg-primary/20 text-primary' : ''}
+              >
+                <SortDesc className="mr-2 h-4 w-4" />
+                <span>Z-A</span>
+              </DropdownMenuItem>
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  };
 
   const renderCategoryContent = () => {
     switch (activeCategory) {
@@ -951,7 +956,20 @@ const Artwork = () => {
         <div className="container relative mx-auto h-full flex flex-col justify-center items-center px-6 md:px-12 text-center">
           <div className="max-w-4xl mx-auto animate-fade-in">
             <h1 className="font-onePiece text-4xl md:text-6xl lg:text-7xl text-foreground mb-4">
-              <span className="text-primary">ARTWORK</span>
+              <span 
+                className="relative" 
+                style={{ 
+                  fontFamily: "'Playfair Display', serif", 
+                  letterSpacing: "0.05em", 
+                  fontWeight: "700",
+                  background: "linear-gradient(to bottom, hsl(var(--primary)), hsl(var(--primary)/0.8))",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  textShadow: "0 0 15px rgba(var(--primary), 0.3)",
+                  display: "inline-block",
+                  padding: "0 0.1em"
+                }}
+              >ARTWORK</span>
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground mb-8 max-w-2xl mx-auto">
               Explore stunning artwork, character designs, and promotional materials from One Piece Fighting Path.

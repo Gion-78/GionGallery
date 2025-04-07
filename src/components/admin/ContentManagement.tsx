@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Trash2, X, Image, FileArchive, Video, ExternalLink, Edit, Check, Upload, FileUp, RefreshCw } from 'lucide-react';
+import { Trash2, X, Image, FileArchive, Video, ExternalLink, Edit, Check, Upload, FileUp } from 'lucide-react';
 import { deleteFile, uploadImage, uploadZip, uploadVideo } from '../../lib/imagekit';
-import { deleteContent, triggerStorageUpdate, clearLocalStorageCache } from '../../lib/utils';
+import { deleteContent, triggerStorageUpdate } from '../../lib/utils';
 import { getAllContent, updateContent, deleteContent as deleteContentFromSupabase, ContentItem } from '../../lib/supabase';
 import { useAuth } from '../../context/AuthContext';
 
@@ -63,7 +63,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedItems, setSelectedItems] = useState<string[]>([]);
   const [isDeleteSelectedInProgress, setIsDeleteSelectedInProgress] = useState(false);
-  const [isClearingCache, setIsClearingCache] = useState(false);
   
   const imageInputRef = useRef<HTMLInputElement>(null);
   const zipInputRef = useRef<HTMLInputElement>(null);
@@ -85,7 +84,11 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
       const supabaseResult = await getAllContent();
       
       if (supabaseResult.success && supabaseResult.data) {
-        setContentItems(supabaseResult.data.reverse()); // Show newest first
+        // Sort by date, newest first
+        const sortedContent = supabaseResult.data.sort((a, b) => {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        setContentItems(sortedContent);
         return;
       }
       
@@ -93,7 +96,11 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
       const siteContentJSON = localStorage.getItem('siteContent');
       if (siteContentJSON) {
         const parsedContent = JSON.parse(siteContentJSON);
-        setContentItems(parsedContent.reverse()); // Show newest first
+        // Sort by date, newest first
+        const sortedContent = parsedContent.sort((a, b) => {
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        setContentItems(sortedContent);
       } else {
         setContentItems([]);
       }
@@ -543,34 +550,12 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
     });
   };
 
-  // Select or deselect all visible items
+  // Toggle all items selection
   const toggleSelectAll = () => {
     if (selectedItems.length === filteredContent.length) {
-      // If all are selected, deselect all
       setSelectedItems([]);
     } else {
-      // Otherwise, select all visible items
       setSelectedItems(filteredContent.map(item => item.id));
-    }
-  };
-
-  // Clear all localStorage cache
-  const handleClearCache = () => {
-    setIsClearingCache(true);
-    try {
-      const result = clearLocalStorageCache();
-      if (result) {
-        alert('Cache cleared successfully. The content will now be loaded only from Supabase.');
-        // Reload content after clearing cache
-        loadContent();
-      } else {
-        alert('Failed to clear cache. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error clearing cache:', error);
-      alert('Error clearing cache: ' + (error instanceof Error ? error.message : String(error)));
-    } finally {
-      setIsClearingCache(false);
     }
   };
 
@@ -615,17 +600,6 @@ const ContentManagement: React.FC<ContentManagementProps> = ({ isOpen, onClose }
                   </button>
                 ))}
               </div>
-              
-              {/* Clear Cache Button */}
-              <button
-                onClick={handleClearCache}
-                disabled={isClearingCache}
-                className="flex items-center gap-1 px-3 py-1.5 bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-md text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Clear localStorage cache"
-              >
-                <RefreshCw className={`w-4 h-4 ${isClearingCache ? 'animate-spin' : ''}`} />
-                Clear Cache
-              </button>
               
               {/* Delete Selected button in header */}
               {selectedItems.length > 0 && (

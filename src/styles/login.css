@@ -7,8 +7,10 @@
     flex-direction: column;
     height: 100vh;
     width: 100%;
-    background-color: hsl(0, 0%, 10%);
-    background: linear-gradient(to right, hsl(0, 0%, 10%), hsl(0, 0%, 15%));
+    background-image: url('');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
 }
 
 .login-page .container {

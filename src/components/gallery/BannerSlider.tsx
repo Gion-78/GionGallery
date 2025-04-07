@@ -201,14 +201,14 @@ const BannerSlider = () => {
       {/* Navigation Buttons */}
       <button 
         onClick={prevSlide}
-        className="absolute left-4 top-1/2 -translate-y-1/2 bg-background/50 hover:bg-background/70 text-white rounded-full p-2 backdrop-blur-sm transition-all duration-300"
+        className="absolute left-4 top-1/2 -translate-y-1/2 bg-secondary/90 hover:bg-secondary text-secondary-foreground hover:text-primary rounded-full p-2 shadow-md flex items-center justify-center transition-all duration-300 cursor-pointer"
         aria-label="Previous banner"
       >
         <ChevronLeft className="w-6 h-6" />
       </button>
       <button 
         onClick={nextSlide}
-        className="absolute right-4 top-1/2 -translate-y-1/2 bg-background/50 hover:bg-background/70 text-white rounded-full p-2 backdrop-blur-sm transition-all duration-300"
+        className="absolute right-4 top-1/2 -translate-y-1/2 bg-secondary/90 hover:bg-secondary text-secondary-foreground hover:text-primary rounded-full p-2 shadow-md flex items-center justify-center transition-all duration-300 cursor-pointer"
         aria-label="Next banner"
       >
         <ChevronRight className="w-6 h-6" />
